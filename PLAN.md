@@ -1,6 +1,6 @@
 # GrowStreams V2 — Execution Plan & Gap Analysis
 
-> Last updated: 30 Jan 2026 | Owner: Satyam
+> Last updated: 23 Feb 2026 | Owner: Satyam
 
 ---
 
@@ -23,18 +23,19 @@
 
 | Component | Priority | Status | Notes |
 |---|---|---|---|
-| **StreamCore Contract** | P0 | 🔴 Not started | Core streaming state machine: create/update/stop streams, flow rate accounting, solvency invariants. |
-| **TokenVault Contract** | P0 | 🔴 Not started | Deposit/buffer management, fungible token handling, emergency pause, liquidation triggers. |
-| **SplitsRouter Contract** | P1 | 🔴 Not started | Weighted one-to-many distribution. Can defer to week 2 but must design interface now. |
+| **StreamCore Contract** | P0 | ✅ Deployed | Core streaming state machine. 15 service methods. Deployed to Vara testnet. 11/11 E2E tests pass. |
+| **TokenVault Contract** | P0 | ✅ Deployed | Deposit/buffer management, emergency pause/unpause, stream allocations. 12 service methods. 8/8 E2E tests pass. |
+| **Build & Deploy Pipeline** | P0 | ✅ Done | `build.sh` → `.opt.wasm` artifacts. `deploy.mjs` via `@gear-js/api`. `e2e-test.mjs` (21 tests). |
+| **Technical Docs** | P0 | ✅ Done | Protocol spec, contract API reference, SDK quickstart, security model in `docs/`. |
+| **Twitter Content Plan** | P0 | ✅ Drafted | 2-week schedule in `content/twitter-plan.md`. |
+| **SplitsRouter Contract** | P1 | 🔴 Not started | Weighted one-to-many distribution. Interface designed in IDL. |
 | **PermissionManager Contract** | P1 | 🔴 Not started | Delegate roles, app-level permissions for creating/updating streams on behalf of users. |
 | **BountyAdapter Contract** | P1 | 🔴 Not started | Connects AI verification scores to stream creation/adjustment. Bridges V1 scoring → V2 streams. |
 | **Event Indexer** | P0 | 🔴 Not started | Index StreamCreated/Updated/Stopped/Withdrawn events for real-time UI. |
-| **TypeScript SDK** | P0 | 🔴 Not started | Developer-facing SDK wrapping contract interactions via @vara-eth/api. |
+| **TypeScript SDK** | P0 | 🔴 Not started | Developer-facing SDK wrapping contract interactions via @gear-js/api. |
 | **V2 Website (Marketing)** | P0 | 🔴 Not started | New IA: Home, Protocol, Use Cases, Developers, Ecosystem, Demo. |
 | **Demo App** | P0 | 🔴 Not started | Create/update/stop/withdraw streams in a web UI. |
 | **Vara.eth Integration** | P1 | 🔴 Not started | Deploy contracts via Vara.eth for bridgeless Ethereum access. |
-| **Technical Docs** | P0 | 🔴 Not started | Protocol spec, contract API reference, SDK quickstart, security model. |
-| **Twitter Content Plan** | P0 | 🟡 Drafted | See `content/twitter-plan.md`. Needs calendar + Vara amplification coordination. |
 
 ### What Changes (Reposition)
 
@@ -227,48 +228,52 @@ service StreamService {
 
 ---
 
-## 5. Seven-Day Execution Plan
+## 5. Execution Progress
 
-### Day 1 — Alignment + Spec (You Are Here)
-- [x] Confirm V2 scope: StreamCore + TokenVault + USDC (SplitsRouter = V2+)
-- [x] Write README.md with V2 positioning
-- [x] Write PLAN.md with gap analysis and specs
-- [ ] Finalize homepage copy and IA
-- [ ] Define contract IDL files
-- [ ] Set up project scaffold (contracts/, frontend/, sdk/, docs/)
+### Phase 1 — Contracts & Infrastructure (COMPLETE)
 
-### Day 2-3 — Contracts & Indexing
-- [ ] Implement StreamCore contract (Rust + Sails)
-- [ ] Implement TokenVault contract
-- [ ] Write contract tests + invariant assertions
-- [ ] Define events and indexer schema
-- [ ] Basic indexer (event listener → database)
-- [ ] Deploy to Vara testnet
+| Task | Status | Details |
+|---|---|---|
+| Confirm V2 scope | ✅ Done | StreamCore + TokenVault + USDC (SplitsRouter = V2+) |
+| Write README.md | ✅ Done | V2 positioning, architecture, deployment tables, API tables |
+| Write PLAN.md | ✅ Done | Gap analysis, specs, progress tracking |
+| Define contract IDL files | ✅ Done | All 5 contract IDLs created |
+| Project scaffold | ✅ Done | `contracts/`, `docs/`, `scripts/`, `content/`, `artifacts/` |
+| Implement StreamCore | ✅ Deployed | Rust + Sails 0.6, 15 methods, full stream lifecycle |
+| Implement TokenVault | ✅ Deployed | Rust + Sails 0.6, 12 methods, deposit/pause/allocate |
+| Build pipeline | ✅ Done | `build.sh` → gear-wasm-builder → `.opt.wasm` |
+| Deploy pipeline | ✅ Done | `deploy.mjs` via `@gear-js/api` v0.44.2 |
+| E2E test suite | ✅ Done | `e2e-test.mjs` — 21/21 tests passing on Vara testnet |
+| Deploy to Vara testnet | ✅ Done | Both contracts live, program IDs in `deploy-state.json` |
+| Technical docs | ✅ Done | `protocol.md`, `contracts-api.md`, `sdk-quickstart.md`, `security.md` |
+| Twitter content plan | ✅ Drafted | 2-week schedule in `content/twitter-plan.md` |
 
-### Day 2-5 — Frontend (Parallel Track)
-- [ ] Initialize Next.js 15 project with TailwindCSS + shadcn/ui
-- [ ] Build Home page (hero, value prop, streaming animation)
-- [ ] Build Protocol page (how it works, diagrams)
-- [ ] Build Use Cases page (card grid)
-- [ ] Build Demo App page (connect wallet, create/manage streams)
-- [ ] Integrate wallet connection (MetaMask + Polkadot.js)
-- [ ] Wire up stream actions to SDK/contracts
+### Phase 2 — Frontend & SDK (NEXT)
 
-### Day 5-6 — QA + Security
-- [ ] Static analysis on contracts (clippy, cargo audit)
-- [ ] Internal review: solvency invariants, edge cases
-- [ ] Basic threat model document
-- [ ] Fix critical issues
-- [ ] Testnet deployment verification
-- [ ] Demo scripts (end-to-end flow)
+| Task | Status | Priority |
+|---|---|---|
+| Initialize Next.js 15 project | 🔴 Not started | P0 |
+| Build Home page (hero, streaming animation) | 🔴 Not started | P0 |
+| Build Protocol page (how it works, diagrams) | 🔴 Not started | P0 |
+| Build Use Cases page (card grid) | 🔴 Not started | P0 |
+| Build Demo App (connect wallet, create/manage streams) | 🔴 Not started | P0 |
+| Integrate wallet connection (MetaMask + Polkadot.js) | 🔴 Not started | P0 |
+| TypeScript SDK v0.1 | 🔴 Not started | P0 |
+| Event indexer | 🔴 Not started | P0 |
 
-### Day 7 — Launch Pack
-- [ ] Updated pitch deck with V2 positioning
-- [ ] Demo video (2-3 minutes): create stream → watch accrual → withdraw
-- [ ] Technical docs finalized (contracts, API, flow diagrams)
-- [ ] Testnet deployment report (addresses, explorer links)
-- [ ] Twitter content plan finalized + first 3 tweets drafted
-- [ ] Vara global amplification request prepared
+### Phase 3 — QA + Launch
+
+| Task | Status | Priority |
+|---|---|---|
+| Static analysis (clippy, cargo audit) | 🔴 Not started | P1 |
+| Solvency invariant review | 🔴 Not started | P1 |
+| Threat model document | 🔴 Not started | P1 |
+| SplitsRouter contract | 🔴 Not started | P1 |
+| PermissionManager contract | 🔴 Not started | P1 |
+| BountyAdapter contract | 🔴 Not started | P1 |
+| Demo video (2-3 min) | 🔴 Not started | P1 |
+| Pitch deck update | 🔴 Not started | P2 |
+| Vara.eth deployment | 🔴 Not started | P2 |
 
 ---
 
@@ -350,16 +355,20 @@ service StreamService {
 
 ## 8. Deliverables Checklist (M0 — "Prove It First")
 
-- [ ] V2 website live (new positioning + use cases + dev page)
-- [ ] StreamCore deployed on Vara testnet + addresses documented
-- [ ] TokenVault deployed + integrated with StreamCore
-- [ ] Demo app: create/update/stop/withdraw streams (working E2E)
-- [ ] Technical docs (contract API, protocol flow, SDK quickstart)
-- [ ] Demo video (2-3 minutes)
-- [ ] Security review notes + "zero critical vuln" statement
-- [ ] Content plan doc + 2-week schedule finalized
-- [ ] Identity Registry (V1) integrated as one app adapter
-- [ ] SDK v0.1 published (npm or GitHub package)
+| # | Deliverable | Status |
+|---|---|---|
+| 1 | StreamCore deployed on Vara testnet + addresses documented | ✅ Done |
+| 2 | TokenVault deployed + integrated with StreamCore | ✅ Done |
+| 3 | E2E tests: create/update/stop/withdraw streams (21/21 pass) | ✅ Done |
+| 4 | Technical docs (contract API, protocol flow, SDK quickstart) | ✅ Done |
+| 5 | Content plan doc + 2-week schedule finalized | ✅ Done |
+| 6 | Build + deploy pipeline (repeatable, scripted) | ✅ Done |
+| 7 | V2 website live (new positioning + use cases + dev page) | 🔴 Not started |
+| 8 | Demo app: create/update/stop/withdraw streams in web UI | 🔴 Not started |
+| 9 | Demo video (2-3 minutes) | 🔴 Not started |
+| 10 | Security review notes + "zero critical vuln" statement | 🔴 Not started |
+| 11 | Identity Registry (V1) integrated as one app adapter | 🔴 Not started |
+| 12 | SDK v0.1 published (npm or GitHub package) | 🔴 Not started |
 
 ---
 
@@ -375,12 +384,30 @@ service StreamService {
 
 ---
 
-## 10. Open Decisions
+## 10. Deployed Contract Details
+
+| Field | StreamCore | TokenVault |
+|---|---|---|
+| **Program ID** | `0xf8e1e0ab…c2ea249` | `0x25e433af…997d3e` |
+| **Code ID** | `0x87ab0f16…56b9087` | `0x61c0a68a…026d2b6` |
+| **Network** | Vara Testnet | Vara Testnet |
+| **Node** | `wss://testnet.vara.network` | `wss://testnet.vara.network` |
+| **Framework** | Sails-rs 0.6 + gstd 1.6 | Sails-rs 0.6 + gstd 1.6 |
+| **WASM Size** | 62 KB (.opt.wasm) | 59 KB (.opt.wasm) |
+| **Service Methods** | 15 (7 commands + 8 queries) | 12 (8 commands + 4 queries) |
+| **E2E Tests** | 11/11 pass | 8/8 pass (+ 2 cross-checks) |
+| **Admin** | `kGkLork3scX9…snYiZA` (deployer) | `kGkLork3scX9…snYiZA` (deployer) |
+
+---
+
+## 11. Open Decisions
 
 | Decision | Options | Recommendation | Status |
 |---|---|---|---|
-| Deploy target for week 1 | Vara Network vs Vara.eth testnet | Vara Network (more stable); add Vara.eth in week 2 | ⏳ Pending |
+| Deploy target | Vara Network vs Vara.eth testnet | Vara Network (deployed, working) | ✅ Decided |
 | SplitsRouter in MVP? | Include vs defer | Defer build, design interface now | ✅ Decided |
-| Token for MVP | USDC only vs USDC + VARA | USDC only; add VARA as second token | ✅ Decided |
+| Token for MVP | USDC only vs USDC + VARA | Token-agnostic (ActorId-based); USDC first | ✅ Decided |
 | Frontend framework | Next.js 15 (match V1) vs fresh | Next.js 15 (consistency, reuse V1 components) | ✅ Decided |
+| Deploy tooling | gcli vs @gear-js/api | @gear-js/api v0.44.2 (gcli fails to compile) | ✅ Decided |
+| WASM artifacts | Raw cargo output vs gear-wasm-builder | `.opt.wasm` from gear-wasm-builder (required for Gear runtime) | ✅ Decided |
 | Indexer tech | Custom Rust vs TypeScript vs SubQuery | TypeScript (faster to build); migrate to Rust if needed | ⏳ Pending |

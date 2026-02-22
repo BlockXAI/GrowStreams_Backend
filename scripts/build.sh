@@ -40,15 +40,24 @@ for contract in "${CONTRACTS[@]}"; do
 done
 
 # Copy WASM artifacts to a central output dir
+# The gear-wasm-builder produces optimized .opt.wasm in a nested path
 OUTPUT_DIR="$PROJECT_ROOT/artifacts"
 mkdir -p "$OUTPUT_DIR"
 
+OPT_DIR="$CONTRACTS_DIR/target/wasm32-unknown-unknown/wasm32-unknown-unknown/release"
+
 for contract in "${CONTRACTS[@]}"; do
     WASM_NAME="${contract//-/_}"
-    WASM_PATH="$CONTRACTS_DIR/target/wasm32-unknown-unknown/release/${WASM_NAME}.wasm"
-    if [ -f "$WASM_PATH" ]; then
-        cp "$WASM_PATH" "$OUTPUT_DIR/"
-        echo "Artifact: artifacts/${WASM_NAME}.wasm"
+    OPT_PATH="$OPT_DIR/${WASM_NAME}.opt.wasm"
+    RAW_PATH="$OPT_DIR/${WASM_NAME}.wasm"
+    if [ -f "$OPT_PATH" ]; then
+        cp "$OPT_PATH" "$OUTPUT_DIR/${WASM_NAME}.opt.wasm"
+        echo "Artifact: artifacts/${WASM_NAME}.opt.wasm ($(du -h "$OPT_PATH" | cut -f1))"
+    elif [ -f "$RAW_PATH" ]; then
+        cp "$RAW_PATH" "$OUTPUT_DIR/${WASM_NAME}.wasm"
+        echo "Artifact: artifacts/${WASM_NAME}.wasm ($(du -h "$RAW_PATH" | cut -f1))"
+    else
+        echo "Warning: No WASM found for $contract"
     fi
 done
 

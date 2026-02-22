@@ -52,8 +52,8 @@ if (!VARA_SEED || VARA_SEED.includes('word1 word2')) {
 }
 
 const ARTIFACTS = {
-  'stream-core': resolve(PROJECT_ROOT, 'artifacts/stream_core.wasm'),
-  'token-vault': resolve(PROJECT_ROOT, 'artifacts/token_vault.wasm'),
+  'stream-core': resolve(PROJECT_ROOT, 'artifacts/stream_core.opt.wasm'),
+  'token-vault': resolve(PROJECT_ROOT, 'artifacts/token_vault.opt.wasm'),
 };
 
 const DEPLOY_STATE_PATH = resolve(PROJECT_ROOT, 'deploy-state.json');
