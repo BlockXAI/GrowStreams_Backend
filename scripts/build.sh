@@ -23,7 +23,9 @@ if ! rustup target list --installed | grep -q wasm32-unknown-unknown; then
 fi
 
 # Build each contract
-CONTRACTS=("stream-core" "token-vault")
+# Contracts to build (name -> subdirectory under contracts/)
+CONTRACTS=("stream-core" "token-vault" "splits-router" "permission-manager" "identity-registry")
+ADAPTER_CONTRACTS=("bounty-adapter")
 
 for contract in "${CONTRACTS[@]}"; do
     CONTRACT_DIR="$CONTRACTS_DIR/$contract"
@@ -39,6 +41,22 @@ for contract in "${CONTRACTS[@]}"; do
     fi
 done
 
+for contract in "${ADAPTER_CONTRACTS[@]}"; do
+    CONTRACT_DIR="$CONTRACTS_DIR/adapters/$contract"
+    if [ -d "$CONTRACT_DIR" ]; then
+        echo "Building $contract..."
+        cargo build \
+            --manifest-path "$CONTRACT_DIR/Cargo.toml" \
+            --target wasm32-unknown-unknown \
+            --release
+        echo "  Done: $contract"
+    else
+        echo "  Warning: $CONTRACT_DIR not found, skipping"
+    fi
+done
+
+ALL_CONTRACTS=("stream-core" "token-vault" "splits-router" "permission-manager" "identity-registry" "bounty-adapter")
+
 # Copy WASM artifacts to a central output dir
 # The gear-wasm-builder produces optimized .opt.wasm in a nested path
 OUTPUT_DIR="$PROJECT_ROOT/artifacts"
@@ -46,7 +64,7 @@ mkdir -p "$OUTPUT_DIR"
 
 OPT_DIR="$CONTRACTS_DIR/target/wasm32-unknown-unknown/wasm32-unknown-unknown/release"
 
-for contract in "${CONTRACTS[@]}"; do
+for contract in "${ALL_CONTRACTS[@]}"; do
     WASM_NAME="${contract//-/_}"
     OPT_PATH="$OPT_DIR/${WASM_NAME}.opt.wasm"
     RAW_PATH="$OPT_DIR/${WASM_NAME}.wasm"

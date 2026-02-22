@@ -54,6 +54,10 @@ if (!VARA_SEED || VARA_SEED.includes('word1 word2')) {
 const ARTIFACTS = {
   'stream-core': resolve(PROJECT_ROOT, 'artifacts/stream_core.opt.wasm'),
   'token-vault': resolve(PROJECT_ROOT, 'artifacts/token_vault.opt.wasm'),
+  'splits-router': resolve(PROJECT_ROOT, 'artifacts/splits_router.opt.wasm'),
+  'permission-manager': resolve(PROJECT_ROOT, 'artifacts/permission_manager.opt.wasm'),
+  'bounty-adapter': resolve(PROJECT_ROOT, 'artifacts/bounty_adapter.opt.wasm'),
+  'identity-registry': resolve(PROJECT_ROOT, 'artifacts/identity_registry.opt.wasm'),
 };
 
 const DEPLOY_STATE_PATH = resolve(PROJECT_ROOT, 'deploy-state.json');
@@ -173,7 +177,7 @@ async function deployContract(api, account, name, wasmPath, initPayload) {
 
 async function main() {
   const target = process.argv[2] || 'all';
-  const validTargets = ['all', 'stream-core', 'token-vault'];
+  const validTargets = ['all', ...Object.keys(ARTIFACTS)];
 
   if (!validTargets.includes(target)) {
     console.error(`Unknown target: ${target}`);
@@ -238,16 +242,16 @@ async function main() {
   console.log('\n=== Deployment complete ===');
   console.log(`State: ${DEPLOY_STATE_PATH}`);
 
-  if (state['stream-core']) {
-    console.log(`\nStreamCore:  ${state['stream-core'].programId}`);
-  }
-  if (state['token-vault']) {
-    console.log(`TokenVault:  ${state['token-vault'].programId}`);
+  console.log('\nDeployed contracts:');
+  for (const name of Object.keys(ARTIFACTS)) {
+    if (state[name]) {
+      console.log(`  ${name}: ${state[name].programId}`);
+    }
   }
 
   console.log('\nNext steps:');
   console.log('  1. Verify on: https://idea.gear-tech.io/programs');
-  console.log('  2. Update docs/contracts-api.md with program IDs');
+  console.log('  2. Run E2E tests: node e2e-test.mjs');
 
   await api.disconnect();
   process.exit(0);

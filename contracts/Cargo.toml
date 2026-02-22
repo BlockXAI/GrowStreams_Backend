@@ -2,6 +2,10 @@
 members = [
     "stream-core",
     "token-vault",
+    "splits-router",
+    "permission-manager",
+    "adapters/bounty-adapter",
+    "identity-registry",
 ]
 resolver = "2"
 

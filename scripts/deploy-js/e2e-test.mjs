@@ -15,9 +15,13 @@ const VARA_NODE = process.env.VARA_NODE || 'wss://testnet.vara.network';
 const deployState = JSON.parse(readFileSync(resolve(PROJECT_ROOT, 'deploy-state.json'), 'utf-8'));
 const STREAM_CORE_ID = deployState['stream-core']?.programId;
 const TOKEN_VAULT_ID = deployState['token-vault']?.programId;
+const SPLITS_ROUTER_ID = deployState['splits-router']?.programId;
+const PERMISSION_MGR_ID = deployState['permission-manager']?.programId;
+const BOUNTY_ADAPTER_ID = deployState['bounty-adapter']?.programId;
+const IDENTITY_REG_ID = deployState['identity-registry']?.programId;
 
 if (!STREAM_CORE_ID || !TOKEN_VAULT_ID) {
-  console.error('Missing program IDs in deploy-state.json. Deploy first.');
+  console.error('Missing core program IDs in deploy-state.json. Deploy first.');
   process.exit(1);
 }
 
@@ -157,8 +161,12 @@ async function sendMessage(api, keyring, programId, payload) {
 
 async function main() {
   console.log('=== GrowStreams V2 — E2E Test Suite ===\n');
-  console.log(`StreamCore: ${STREAM_CORE_ID}`);
-  console.log(`TokenVault: ${TOKEN_VAULT_ID}`);
+  console.log(`StreamCore:        ${STREAM_CORE_ID}`);
+  console.log(`TokenVault:        ${TOKEN_VAULT_ID}`);
+  console.log(`SplitsRouter:      ${SPLITS_ROUTER_ID || 'NOT DEPLOYED'}`);
+  console.log(`PermissionManager: ${PERMISSION_MGR_ID || 'NOT DEPLOYED'}`);
+  console.log(`BountyAdapter:     ${BOUNTY_ADAPTER_ID || 'NOT DEPLOYED'}`);
+  console.log(`IdentityRegistry:  ${IDENTITY_REG_ID || 'NOT DEPLOYED'}`);
   console.log(`Node: ${VARA_NODE}\n`);
 
   const api = await GearApi.create({ providerAddress: VARA_NODE });
@@ -404,6 +412,411 @@ async function main() {
     assert(reply !== null, 'GetStreamAllocation returns reply');
   } catch (err) {
     console.log(`  ERROR: ${err.message}`); failed++;
+  }
+
+  // ===========================================================================
+  // SplitsRouter Tests
+  // ===========================================================================
+  if (SPLITS_ROUTER_ID) {
+    console.log('\n--- SplitsRouter Tests ---\n');
+
+    // 20. Query config
+    console.log('[20] SplitsRouter GetConfig');
+    try {
+      const payload = buildPayload('SplitsService', 'GetConfig');
+      const reply = await queryState(api, keyring, SPLITS_ROUTER_ID, payload);
+      assert(reply && reply.length > 10, 'GetConfig returns data');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 21. TotalGroups == 0 initially (or current count)
+    console.log('[21] SplitsRouter TotalGroups');
+    try {
+      const payload = buildPayload('SplitsService', 'TotalGroups');
+      const reply = await queryState(api, keyring, SPLITS_ROUTER_ID, payload);
+      assert(reply !== null, 'TotalGroups returns reply');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 22. Create a split group with 3 recipients
+    let splitGroupId = 0n;
+    console.log('[22] CreateSplitGroup (3 recipients)');
+    try {
+      // Encode Vec<SplitRecipient>: compact length + items
+      // Each item: ActorId (32 bytes) + u32 (4 bytes LE)
+      const r1 = Buffer.concat([encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000001'), Buffer.from([50, 0, 0, 0])]);
+      const r2 = Buffer.concat([encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000002'), Buffer.from([30, 0, 0, 0])]);
+      const r3 = Buffer.concat([encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000003'), Buffer.from([20, 0, 0, 0])]);
+      const vecPrefix = encodeCompactU32(3);
+      const recipients = Buffer.concat([vecPrefix, r1, r2, r3]);
+      const payload = buildPayload('SplitsService', 'CreateSplitGroup', recipients);
+      await sendMessage(api, keyring, SPLITS_ROUTER_ID, payload);
+      // Verify via TotalGroups
+      const check = await queryState(api, keyring, SPLITS_ROUTER_ID, buildPayload('SplitsService', 'TotalGroups'));
+      const raw = skipStrings(check, 2);
+      splitGroupId = raw.readBigUInt64LE(0);
+      assert(splitGroupId >= 1n, `SplitGroup created (id=${splitGroupId})`);
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 23. GetSplitGroup
+    console.log(`[23] GetSplitGroup(${splitGroupId})`);
+    try {
+      const payload = buildPayload('SplitsService', 'GetSplitGroup', encodeU64LE(Number(splitGroupId)));
+      const reply = await queryState(api, keyring, SPLITS_ROUTER_ID, payload);
+      assert(reply !== null && reply.length > 20, 'GetSplitGroup returns data');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 24. GetOwnerGroups
+    console.log('[24] GetOwnerGroups');
+    try {
+      const payload = buildPayload('SplitsService', 'GetOwnerGroups', encodeActorId('0x' + Buffer.from(keyring.publicKey).toString('hex')));
+      const reply = await queryState(api, keyring, SPLITS_ROUTER_ID, payload);
+      assert(reply !== null, 'GetOwnerGroups returns data');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 25. PreviewDistribution
+    console.log(`[25] PreviewDistribution(${splitGroupId}, 10000)`);
+    try {
+      const payload = buildPayload('SplitsService', 'PreviewDistribution', encodeU64LE(Number(splitGroupId)), encodeU128LE(10000));
+      const reply = await queryState(api, keyring, SPLITS_ROUTER_ID, payload);
+      assert(reply !== null && reply.length > 10, 'PreviewDistribution returns shares');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 26. Distribute
+    console.log(`[26] Distribute(${splitGroupId})`);
+    try {
+      const payload = buildPayload('SplitsService', 'Distribute',
+        encodeU64LE(Number(splitGroupId)),
+        encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000000'),
+        encodeU128LE(100000));
+      await sendMessage(api, keyring, SPLITS_ROUTER_ID, payload);
+      assert(true, 'Distribute succeeded');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 27. DeleteSplitGroup
+    console.log(`[27] DeleteSplitGroup(${splitGroupId})`);
+    try {
+      const payload = buildPayload('SplitsService', 'DeleteSplitGroup', encodeU64LE(Number(splitGroupId)));
+      await sendMessage(api, keyring, SPLITS_ROUTER_ID, payload);
+      assert(true, 'DeleteSplitGroup succeeded');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+  } else {
+    console.log('\n--- SplitsRouter: SKIPPED (not deployed) ---');
+  }
+
+  // ===========================================================================
+  // PermissionManager Tests
+  // ===========================================================================
+  if (PERMISSION_MGR_ID) {
+    console.log('\n--- PermissionManager Tests ---\n');
+
+    // 28. GetConfig
+    console.log('[28] PermissionManager GetConfig');
+    try {
+      const payload = buildPayload('PermissionService', 'GetConfig');
+      const reply = await queryState(api, keyring, PERMISSION_MGR_ID, payload);
+      assert(reply && reply.length > 10, 'GetConfig returns data');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 29. GrantPermission (CreateStream scope = 0)
+    const grantee = '0x0000000000000000000000000000000000000000000000000000000000000042';
+    console.log('[29] GrantPermission (CreateStream)');
+    try {
+      // scope: u8 enum index (0=CreateStream), expires_at: Option<u64> = None (0x00)
+      const scopeBuf = Buffer.from([0]); // CreateStream = 0
+      const expiresNone = Buffer.from([0]); // None
+      const payload = buildPayload('PermissionService', 'GrantPermission', encodeActorId(grantee), scopeBuf, expiresNone);
+      await sendMessage(api, keyring, PERMISSION_MGR_ID, payload);
+      assert(true, 'GrantPermission succeeded');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 30. HasPermission
+    console.log('[30] HasPermission');
+    try {
+      const granterHex = '0x' + Buffer.from(keyring.publicKey).toString('hex');
+      const scopeBuf = Buffer.from([0]); // CreateStream
+      const payload = buildPayload('PermissionService', 'HasPermission', encodeActorId(granterHex), encodeActorId(grantee), scopeBuf);
+      const reply = await queryState(api, keyring, PERMISSION_MGR_ID, payload);
+      const raw = skipStrings(reply, 2);
+      assert(raw[0] === 1, `HasPermission == true (got ${raw[0]})`);
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 31. GetPermissions
+    console.log('[31] GetPermissions (granter)');
+    try {
+      const granterHex = '0x' + Buffer.from(keyring.publicKey).toString('hex');
+      const payload = buildPayload('PermissionService', 'GetPermissions', encodeActorId(granterHex));
+      const reply = await queryState(api, keyring, PERMISSION_MGR_ID, payload);
+      assert(reply !== null, 'GetPermissions returns data');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 32. RevokePermission
+    console.log('[32] RevokePermission');
+    try {
+      const scopeBuf = Buffer.from([0]); // CreateStream
+      const payload = buildPayload('PermissionService', 'RevokePermission', encodeActorId(grantee), scopeBuf);
+      await sendMessage(api, keyring, PERMISSION_MGR_ID, payload);
+      assert(true, 'RevokePermission succeeded');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 33. HasPermission == false after revoke
+    console.log('[33] HasPermission == false after revoke');
+    try {
+      const granterHex = '0x' + Buffer.from(keyring.publicKey).toString('hex');
+      const scopeBuf = Buffer.from([0]);
+      const payload = buildPayload('PermissionService', 'HasPermission', encodeActorId(granterHex), encodeActorId(grantee), scopeBuf);
+      const reply = await queryState(api, keyring, PERMISSION_MGR_ID, payload);
+      const raw = skipStrings(reply, 2);
+      assert(raw[0] === 0, `HasPermission == false after revoke (got ${raw[0]})`);
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 34. TotalPermissions
+    console.log('[34] TotalPermissions');
+    try {
+      const payload = buildPayload('PermissionService', 'TotalPermissions');
+      const reply = await queryState(api, keyring, PERMISSION_MGR_ID, payload);
+      assert(reply !== null, 'TotalPermissions returns reply');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+  } else {
+    console.log('\n--- PermissionManager: SKIPPED (not deployed) ---');
+  }
+
+  // ===========================================================================
+  // BountyAdapter Tests
+  // ===========================================================================
+  if (BOUNTY_ADAPTER_ID) {
+    console.log('\n--- BountyAdapter Tests ---\n');
+
+    // 35. GetConfig
+    console.log('[35] BountyAdapter GetConfig');
+    try {
+      const payload = buildPayload('BountyService', 'GetConfig');
+      const reply = await queryState(api, keyring, BOUNTY_ADAPTER_ID, payload);
+      assert(reply && reply.length > 10, 'GetConfig returns data');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 36. TotalBounties
+    console.log('[36] TotalBounties');
+    try {
+      const payload = buildPayload('BountyService', 'TotalBounties');
+      const reply = await queryState(api, keyring, BOUNTY_ADAPTER_ID, payload);
+      assert(reply !== null, 'TotalBounties returns reply');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 37. CreateBounty
+    let bountyId = 0n;
+    console.log('[37] CreateBounty');
+    try {
+      const title = Buffer.from('Fix login bug', 'utf-8');
+      const titleEncoded = Buffer.concat([encodeCompactU32(title.length), title]);
+      const token = encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000000');
+      const maxFlowRate = encodeU128LE(5000);
+      const minScore = Buffer.alloc(4); minScore.writeUInt32LE(60);
+      const totalBudget = encodeU128LE(10000000);
+      const payload = buildPayload('BountyService', 'CreateBounty', titleEncoded, token, maxFlowRate, minScore, totalBudget);
+      await sendMessage(api, keyring, BOUNTY_ADAPTER_ID, payload);
+      // Verify
+      const check = await queryState(api, keyring, BOUNTY_ADAPTER_ID, buildPayload('BountyService', 'TotalBounties'));
+      const raw = skipStrings(check, 2);
+      bountyId = raw.readBigUInt64LE(0);
+      assert(bountyId >= 1n, `Bounty created (id=${bountyId})`);
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 38. GetBounty
+    console.log(`[38] GetBounty(${bountyId})`);
+    try {
+      const payload = buildPayload('BountyService', 'GetBounty', encodeU64LE(Number(bountyId)));
+      const reply = await queryState(api, keyring, BOUNTY_ADAPTER_ID, payload);
+      assert(reply !== null && reply.length > 20, 'GetBounty returns data');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 39. GetOpenBounties
+    console.log('[39] GetOpenBounties');
+    try {
+      const payload = buildPayload('BountyService', 'GetOpenBounties');
+      const reply = await queryState(api, keyring, BOUNTY_ADAPTER_ID, payload);
+      assert(reply !== null, 'GetOpenBounties returns data');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 40. ClaimBounty
+    console.log(`[40] ClaimBounty(${bountyId})`);
+    try {
+      const payload = buildPayload('BountyService', 'ClaimBounty', encodeU64LE(Number(bountyId)));
+      await sendMessage(api, keyring, BOUNTY_ADAPTER_ID, payload);
+      assert(true, 'ClaimBounty succeeded');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 41. VerifyAndStartStream
+    console.log(`[41] VerifyAndStartStream(${bountyId}, score=85)`);
+    try {
+      const claimer = encodeActorId('0x' + Buffer.from(keyring.publicKey).toString('hex'));
+      const score = Buffer.alloc(4); score.writeUInt32LE(85);
+      const payload = buildPayload('BountyService', 'VerifyAndStartStream', encodeU64LE(Number(bountyId)), claimer, score);
+      await sendMessage(api, keyring, BOUNTY_ADAPTER_ID, payload);
+      assert(true, 'VerifyAndStartStream succeeded');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 42. CompleteBounty
+    console.log(`[42] CompleteBounty(${bountyId})`);
+    try {
+      const payload = buildPayload('BountyService', 'CompleteBounty', encodeU64LE(Number(bountyId)));
+      await sendMessage(api, keyring, BOUNTY_ADAPTER_ID, payload);
+      assert(true, 'CompleteBounty succeeded');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 43. GetCreatorBounties
+    console.log('[43] GetCreatorBounties');
+    try {
+      const payload = buildPayload('BountyService', 'GetCreatorBounties', encodeActorId('0x' + Buffer.from(keyring.publicKey).toString('hex')));
+      const reply = await queryState(api, keyring, BOUNTY_ADAPTER_ID, payload);
+      assert(reply !== null, 'GetCreatorBounties returns data');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+  } else {
+    console.log('\n--- BountyAdapter: SKIPPED (not deployed) ---');
+  }
+
+  // ===========================================================================
+  // IdentityRegistry Tests
+  // ===========================================================================
+  if (IDENTITY_REG_ID) {
+    console.log('\n--- IdentityRegistry Tests ---\n');
+
+    // 44. GetConfig
+    console.log('[44] IdentityRegistry GetConfig');
+    try {
+      const payload = buildPayload('IdentityService', 'GetConfig');
+      const reply = await queryState(api, keyring, IDENTITY_REG_ID, payload);
+      assert(reply && reply.length > 10, 'GetConfig returns data');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 45. OracleAddress
+    console.log('[45] OracleAddress');
+    try {
+      const payload = buildPayload('IdentityService', 'OracleAddress');
+      const reply = await queryState(api, keyring, IDENTITY_REG_ID, payload);
+      assert(reply !== null, 'OracleAddress returns reply');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 46. TotalBindings
+    console.log('[46] TotalBindings');
+    try {
+      const payload = buildPayload('IdentityService', 'TotalBindings');
+      const reply = await queryState(api, keyring, IDENTITY_REG_ID, payload);
+      assert(reply !== null, 'TotalBindings returns reply');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 47. CreateBinding (we are oracle since we deployed)
+    const testActor = '0x0000000000000000000000000000000000000000000000000000000000000099';
+    console.log('[47] CreateBinding');
+    try {
+      const actor = encodeActorId(testActor);
+      const username = 'test-github-user';
+      const usernameEnc = Buffer.concat([encodeCompactU32(username.length), Buffer.from(username)]);
+      const proofHash = Buffer.concat([encodeCompactU32(32), Buffer.alloc(32, 0xAB)]);
+      const score = Buffer.alloc(4); score.writeUInt32LE(75);
+      const payload = buildPayload('IdentityService', 'CreateBinding', actor, usernameEnc, proofHash, score);
+      await sendMessage(api, keyring, IDENTITY_REG_ID, payload);
+      assert(true, 'CreateBinding succeeded');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 48. GetBinding
+    console.log('[48] GetBinding');
+    try {
+      const payload = buildPayload('IdentityService', 'GetBinding', encodeActorId(testActor));
+      const reply = await queryState(api, keyring, IDENTITY_REG_ID, payload);
+      assert(reply !== null && reply.length > 20, 'GetBinding returns data');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 49. GetActorByGithub
+    console.log('[49] GetActorByGithub');
+    try {
+      const username = 'test-github-user';
+      const usernameEnc = Buffer.concat([encodeCompactU32(username.length), Buffer.from(username)]);
+      const payload = buildPayload('IdentityService', 'GetActorByGithub', usernameEnc);
+      const reply = await queryState(api, keyring, IDENTITY_REG_ID, payload);
+      assert(reply !== null, 'GetActorByGithub returns data');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 50. UpdateScore
+    console.log('[50] UpdateScore');
+    try {
+      const score = Buffer.alloc(4); score.writeUInt32LE(92);
+      const payload = buildPayload('IdentityService', 'UpdateScore', encodeActorId(testActor), score);
+      await sendMessage(api, keyring, IDENTITY_REG_ID, payload);
+      assert(true, 'UpdateScore succeeded');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+
+    // 51. RevokeBinding
+    console.log('[51] RevokeBinding');
+    try {
+      const payload = buildPayload('IdentityService', 'RevokeBinding', encodeActorId(testActor));
+      await sendMessage(api, keyring, IDENTITY_REG_ID, payload);
+      assert(true, 'RevokeBinding succeeded');
+    } catch (err) {
+      console.log(`  ERROR: ${err.message}`); failed++;
+    }
+  } else {
+    console.log('\n--- IdentityRegistry: SKIPPED (not deployed) ---');
   }
 
   // ===========================================================================
