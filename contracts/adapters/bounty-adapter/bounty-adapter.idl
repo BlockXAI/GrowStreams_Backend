@@ -1,0 +1,57 @@
+// GrowStreams V2 — BountyAdapter IDL
+// Connects AI code verification scores to stream creation/adjustment
+// Bridges V1 identity-registry scoring with V2 streaming payments
+
+type Bounty = struct {
+  id: u64,
+  creator: actor_id,
+  title: str,
+  token: actor_id,
+  max_flow_rate: u128,
+  min_score: u32,
+  total_budget: u128,
+  spent: u128,
+  active_stream: opt u64,
+  claimer: opt actor_id,
+  status: BountyStatus,
+  created_at: u64,
+};
+
+type BountyStatus = enum {
+  Open,
+  Claimed,
+  Streaming,
+  Completed,
+  Cancelled,
+};
+
+constructor {
+  New : (admin: actor_id, stream_core: actor_id, identity_registry: actor_id);
+};
+
+service BountyService {
+  // --- Mutations ---
+  CreateBounty : (title: str, token: actor_id, max_flow_rate: u128, min_score: u32, total_budget: u128) -> result (u64, str);
+  ClaimBounty : (bounty_id: u64) -> result (null, str);
+  VerifyAndStartStream : (bounty_id: u64, claimer: actor_id, score: u32) -> result (u64, str);
+  AdjustStream : (bounty_id: u64, new_flow_rate: u128) -> result (null, str);
+  CompleteBounty : (bounty_id: u64) -> result (null, str);
+  CancelBounty : (bounty_id: u64) -> result (null, str);
+
+  // --- Queries ---
+  query GetBounty : (bounty_id: u64) -> opt Bounty;
+  query GetOpenBounties : () -> vec u64;
+  query GetCreatorBounties : (creator: actor_id) -> vec u64;
+  query GetClaimerBounties : (claimer: actor_id) -> vec u64;
+  query TotalBounties : () -> u64;
+
+  // --- Events ---
+  events {
+    BountyCreated: struct { id: u64, creator: actor_id, token: actor_id, max_flow_rate: u128, total_budget: u128, timestamp: u64 };
+    BountyClaimed: struct { id: u64, claimer: actor_id, timestamp: u64 };
+    BountyStreamStarted: struct { id: u64, stream_id: u64, claimer: actor_id, flow_rate: u128, score: u32, timestamp: u64 };
+    BountyStreamAdjusted: struct { id: u64, old_flow_rate: u128, new_flow_rate: u128, timestamp: u64 };
+    BountyCompleted: struct { id: u64, total_paid: u128, timestamp: u64 };
+    BountyCancelled: struct { id: u64, refunded: u128, timestamp: u64 };
+  }
+};

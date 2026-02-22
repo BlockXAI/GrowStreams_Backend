@@ -1,0 +1,42 @@
+// GrowStreams V2 — PermissionManager IDL
+// Delegate roles and app-level permissions for stream management
+
+type Permission = struct {
+  granter: actor_id,
+  grantee: actor_id,
+  scope: PermissionScope,
+  granted_at: u64,
+  expires_at: opt u64,
+  active: bool,
+};
+
+type PermissionScope = enum {
+  CreateStream,
+  UpdateStream,
+  StopStream,
+  DepositOnBehalf,
+  FullAccess,
+};
+
+constructor {
+  New : (admin: actor_id, stream_core: actor_id);
+};
+
+service PermissionService {
+  // --- Mutations ---
+  GrantPermission : (grantee: actor_id, scope: PermissionScope, expires_at: opt u64) -> result (null, str);
+  RevokePermission : (grantee: actor_id, scope: PermissionScope) -> result (null, str);
+  RevokeAll : (grantee: actor_id) -> result (null, str);
+
+  // --- Queries ---
+  query HasPermission : (granter: actor_id, grantee: actor_id, scope: PermissionScope) -> bool;
+  query GetPermissions : (granter: actor_id) -> vec Permission;
+  query GetGrantedPermissions : (grantee: actor_id) -> vec Permission;
+
+  // --- Events ---
+  events {
+    PermissionGranted: struct { granter: actor_id, grantee: actor_id, scope: PermissionScope, expires_at: opt u64, timestamp: u64 };
+    PermissionRevoked: struct { granter: actor_id, grantee: actor_id, scope: PermissionScope, timestamp: u64 };
+    AllPermissionsRevoked: struct { granter: actor_id, grantee: actor_id, timestamp: u64 };
+  }
+};

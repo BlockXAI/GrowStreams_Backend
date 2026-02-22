@@ -1,0 +1,50 @@
+// GrowStreams V2 — SplitsRouter IDL
+// Weighted one-to-many distribution of incoming funds
+// V2+ — interface designed now, implementation deferred
+
+type SplitGroup = struct {
+  id: u64,
+  owner: actor_id,
+  recipients: vec SplitRecipient,
+  total_weight: u32,
+  created_at: u64,
+  updated_at: u64,
+};
+
+type SplitRecipient = struct {
+  address: actor_id,
+  weight: u32,
+};
+
+type DistributionRecord = struct {
+  group_id: u64,
+  token: actor_id,
+  total_amount: u128,
+  distributed_at: u64,
+};
+
+constructor {
+  New : (admin: actor_id);
+};
+
+service SplitsService {
+  // --- Mutations ---
+  CreateSplitGroup : (recipients: vec SplitRecipient) -> result (u64, str);
+  UpdateSplitGroup : (group_id: u64, recipients: vec SplitRecipient) -> result (null, str);
+  DeleteSplitGroup : (group_id: u64) -> result (null, str);
+  Distribute : (group_id: u64, token: actor_id, amount: u128) -> result (null, str);
+
+  // --- Queries ---
+  query GetSplitGroup : (group_id: u64) -> opt SplitGroup;
+  query GetOwnerGroups : (owner: actor_id) -> vec u64;
+  query PreviewDistribution : (group_id: u64, amount: u128) -> vec struct { address: actor_id, amount: u128 };
+  query TotalGroups : () -> u64;
+
+  // --- Events ---
+  events {
+    SplitGroupCreated: struct { id: u64, owner: actor_id, recipient_count: u32, timestamp: u64 };
+    SplitGroupUpdated: struct { id: u64, recipient_count: u32, timestamp: u64 };
+    SplitGroupDeleted: struct { id: u64, timestamp: u64 };
+    FundsDistributed: struct { group_id: u64, token: actor_id, total_amount: u128, recipient_count: u32, timestamp: u64 };
+  }
+};

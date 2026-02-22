@@ -1,0 +1,45 @@
+// GrowStreams V1 — Identity Registry (Carried Forward)
+// Binds GitHub identities to on-chain actor IDs with verification scores
+// Originally from: Vara-_Github_MVP/contracts/identity-registry.idl
+
+type Binding = struct {
+  actor_id: actor_id,
+  github_username_hash: h256,
+  verified_at: u64,
+  proof_hash: h256,
+  score: u32,
+  updated_at: u64,
+};
+
+constructor {
+  New : (oracle: actor_id);
+};
+
+service Identity {
+  CreateBinding : (actor_id: actor_id, github_username: str, proof_hash: h256, score: u32) -> result (null, str);
+  RevokeBinding : (actor_id: actor_id) -> result (null, str);
+  UpdateScore : (actor_id: actor_id, new_score: u32) -> result (null, str);
+  query GetActorByGithub : (github_username: str) -> opt actor_id;
+  query GetBinding : (actor_id: actor_id) -> opt Binding;
+  query OracleAddress : () -> actor_id;
+  query TotalBindings : () -> u32;
+
+  events {
+    BindingCreated: struct {
+      actor_id: actor_id,
+      github_hash: h256,
+      score: u32,
+      timestamp: u64,
+    };
+    ScoreUpdated: struct {
+      actor_id: actor_id,
+      old_score: u32,
+      new_score: u32,
+      timestamp: u64,
+    };
+    BindingRevoked: struct {
+      actor_id: actor_id,
+      timestamp: u64,
+    };
+  }
+};

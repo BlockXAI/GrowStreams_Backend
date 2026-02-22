@@ -1,0 +1,33 @@
+# Secrets
+.env
+.env.*
+*.key
+*.pem
+*.seed
+
+# Rust build artifacts
+target/
+**/*.rs.bk
+Cargo.lock
+
+# WASM output (rebuild from source)
+*.wasm
+*.opt.wasm
+*.meta.wasm
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Deployment state (contains program IDs, safe to commit selectively)
+# deploy-state.json

@@ -1,0 +1,15 @@
+{
+  "name": "growstreams-deployer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "node deploy.mjs",
+    "deploy:stream-core": "node deploy.mjs stream-core",
+    "deploy:token-vault": "node deploy.mjs token-vault"
+  },
+  "dependencies": {
+    "@gear-js/api": "^0.44.2",
+    "dotenv": "^16.4.5"
+  }
+}
