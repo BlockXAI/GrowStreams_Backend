@@ -52,12 +52,13 @@ if (!VARA_SEED || VARA_SEED.includes('word1 word2')) {
 }
 
 const ARTIFACTS = {
-  'stream-core': resolve(PROJECT_ROOT, 'artifacts/stream_core.opt.wasm'),
   'token-vault': resolve(PROJECT_ROOT, 'artifacts/token_vault.opt.wasm'),
-  'splits-router': resolve(PROJECT_ROOT, 'artifacts/splits_router.opt.wasm'),
-  'permission-manager': resolve(PROJECT_ROOT, 'artifacts/permission_manager.opt.wasm'),
-  'bounty-adapter': resolve(PROJECT_ROOT, 'artifacts/bounty_adapter.opt.wasm'),
-  'identity-registry': resolve(PROJECT_ROOT, 'artifacts/identity_registry.opt.wasm'),
+  'stream-core': resolve(PROJECT_ROOT, 'artifacts/stream_core.opt.wasm'),
+  // Commenting out other contracts for native VARA deployment
+  // 'splits-router': resolve(PROJECT_ROOT, 'artifacts/splits_router.opt.wasm'),
+  // 'permission-manager': resolve(PROJECT_ROOT, 'artifacts/permission_manager.opt.wasm'),
+  // 'bounty-adapter': resolve(PROJECT_ROOT, 'artifacts/bounty_adapter.opt.wasm'),
+  // 'identity-registry': resolve(PROJECT_ROOT, 'artifacts/identity_registry.opt.wasm'),
 };
 
 const DEPLOY_STATE_PATH = resolve(PROJECT_ROOT, 'deploy-state.json');
