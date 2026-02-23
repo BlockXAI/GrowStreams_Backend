@@ -1,4 +1,4 @@
-import { GearApi, GearKeyring } from '@gear-js/api';
+import { GearApi, GearKeyring, decodeAddress } from '@gear-js/api';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -11,6 +11,18 @@ config({ path: resolve(PROJECT_ROOT, '.env') });
 
 const VARA_SEED = process.env.VARA_SEED;
 const VARA_NODE = process.env.VARA_NODE || 'wss://testnet.vara.network';
+
+// Optional CLI arg: receiver SS58 address for streams/splits/permissions/identity tests
+const RECEIVER_SS58 = process.argv[2] || null;
+let RECEIVER_HEX = '0x0000000000000000000000000000000000000000000000000000000000000001';
+if (RECEIVER_SS58) {
+  try {
+    RECEIVER_HEX = '0x' + Buffer.from(decodeAddress(RECEIVER_SS58)).toString('hex');
+  } catch (err) {
+    console.error(`Invalid SS58 address: ${RECEIVER_SS58}`);
+    process.exit(1);
+  }
+}
 
 const deployState = JSON.parse(readFileSync(resolve(PROJECT_ROOT, 'deploy-state.json'), 'utf-8'));
 const STREAM_CORE_ID = deployState['stream-core']?.programId;
@@ -174,6 +186,10 @@ async function main() {
   try { keyring = await GearKeyring.fromMnemonic(VARA_SEED); }
   catch { keyring = await GearKeyring.fromSuri(VARA_SEED); }
   console.log(`Account: ${keyring.address}`);
+  if (RECEIVER_SS58) {
+    console.log(`Receiver wallet: ${RECEIVER_SS58}`);
+    console.log(`Receiver hex:    ${RECEIVER_HEX}`);
+  }
 
   const { data: { free } } = await api.query.system.account(keyring.address);
   console.log(`Balance: ${(Number(BigInt(free.toString())) / 1e12).toFixed(4)} VARA\n`);
@@ -213,7 +229,7 @@ async function main() {
   let streamId = 0n;
   console.log(`[3] Create stream (expecting ID ${expectedId})`);
   try {
-    const receiver = encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000001');
+    const receiver = encodeActorId(RECEIVER_HEX);
     const token = encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000000');
     const flowRate = encodeU128LE(1000);
     const deposit = encodeU128LE(3600000);
@@ -446,7 +462,7 @@ async function main() {
     try {
       // Encode Vec<SplitRecipient>: compact length + items
       // Each item: ActorId (32 bytes) + u32 (4 bytes LE)
-      const r1 = Buffer.concat([encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000001'), Buffer.from([50, 0, 0, 0])]);
+      const r1 = Buffer.concat([encodeActorId(RECEIVER_HEX), Buffer.from([50, 0, 0, 0])]);
       const r2 = Buffer.concat([encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000002'), Buffer.from([30, 0, 0, 0])]);
       const r3 = Buffer.concat([encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000003'), Buffer.from([20, 0, 0, 0])]);
       const vecPrefix = encodeCompactU32(3);
