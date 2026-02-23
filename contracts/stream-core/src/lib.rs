@@ -7,6 +7,18 @@ use sails_rs::{
 };
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+fn encode_call(service: &str, method: &str, args: impl Encode) -> Vec<u8> {
+    let mut payload = Vec::new();
+    service.encode_to(&mut payload);
+    method.encode_to(&mut payload);
+    args.encode_to(&mut payload);
+    payload
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -39,6 +51,7 @@ pub struct Config {
     pub admin: ActorId,
     pub min_buffer_seconds: u64,
     pub next_stream_id: StreamId,
+    pub token_vault: ActorId,
 }
 
 // ---------------------------------------------------------------------------
@@ -62,6 +75,7 @@ impl StreamCoreState {
                 admin,
                 min_buffer_seconds,
                 next_stream_id: 1,
+                token_vault: ActorId::zero(),
             },
             streams: BTreeMap::new(),
             sender_streams: BTreeMap::new(),
@@ -199,6 +213,17 @@ impl StreamService {
         state.receiver_streams.entry(receiver).or_default().push(id);
         state.active_count += 1;
 
+        let payload = encode_call(
+            "VaultService",
+            "AllocateToStream",
+            (sender, token, initial_deposit, id)
+        );
+        msg::send(
+            state.config.token_vault,
+            payload,
+            0
+        ).expect("Vault allocate failed");
+
         id
     }
 
@@ -305,6 +330,17 @@ impl StreamService {
             .saturating_sub(stream.withdrawn);
         assert!(withdrawable > 0, "Nothing to withdraw");
 
+        let payload = encode_call(
+            "VaultService",
+            "TransferToReceiver",
+            (stream.token, stream.receiver, withdrawable, stream_id)
+        );
+        msg::send(
+            state.config.token_vault,
+            payload,
+            0
+        ).expect("Vault transfer failed");
+
         stream.withdrawn = stream.withdrawn.saturating_add(withdrawable);
 
         withdrawable
@@ -385,5 +421,11 @@ impl StreamService {
     pub fn get_config(&self) -> Config {
         let state = StreamCoreState::get();
         state.config.clone()
+    }
+
+    pub fn set_token_vault(&mut self, vault: ActorId) {
+        let state = StreamCoreState::get();
+        assert!(msg::source() == state.config.admin, "Only admin can set token_vault");
+        state.config.token_vault = vault;
     }
 }

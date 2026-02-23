@@ -114,6 +114,20 @@ impl VaultService {
         balance.available = balance.available.saturating_add(amount);
     }
 
+    pub fn deposit_native(&mut self) {
+        let state = TokenVaultState::get();
+        assert!(!state.config.paused, "Vault is paused");
+        
+        let value = msg::value();
+        assert!(value > 0, "Value must be > 0");
+        
+        let caller = msg::source();
+        let token = ActorId::zero();
+        let balance = state.get_or_create_balance(caller, token);
+        balance.total_deposited = balance.total_deposited.saturating_add(value);
+        balance.available = balance.available.saturating_add(value);
+    }
+
     pub fn withdraw_tokens(&mut self, token: ActorId, amount: u128) {
         let state = TokenVaultState::get();
         assert!(!state.config.paused, "Vault is paused");
@@ -123,6 +137,19 @@ impl VaultService {
         assert!(balance.available >= amount, "Insufficient available balance");
 
         balance.available = balance.available.saturating_sub(amount);
+    }
+
+    pub fn withdraw_native(&mut self, amount: u128) {
+        let state = TokenVaultState::get();
+        assert!(!state.config.paused, "Vault is paused");
+        
+        let caller = msg::source();
+        let token = ActorId::zero();
+        let balance = state.get_or_create_balance(caller, token);
+        assert!(balance.available >= amount, "Insufficient available balance");
+        
+        balance.available = balance.available.saturating_sub(amount);
+        msg::send(caller, b"", amount).expect("Failed to send native VARA");
     }
 
     pub fn allocate_to_stream(
@@ -199,8 +226,12 @@ impl VaultService {
         assert!(*alloc >= amount, "Transfer amount exceeds allocation");
         *alloc = alloc.saturating_sub(amount);
 
-        // In production: call fungible token program to transfer to receiver
-        let _ = (token, receiver);
+        if token == ActorId::zero() {
+            msg::send(receiver, b"", amount).expect("Failed to send native VARA");
+        } else {
+            // In production: call fungible token program to transfer to receiver
+            let _ = (token, receiver);
+        }
     }
 
     pub fn emergency_pause(&mut self) {
