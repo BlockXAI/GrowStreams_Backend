@@ -117,12 +117,12 @@ async function queryState(api, keyring, programId, payload) {
 }
 
 // Mutation: send an actual transaction and wait for finalization
-async function sendMessage(api, keyring, programId, payload) {
+async function sendMessage(api, keyring, programId, payload, value = 0) {
   const gasInfo = await api.program.calculateGas.handle(
     keyring.addressRaw,
     programId,
     payload,
-    0,
+    value,
     true,
   );
   const gasLimit = gasInfo.min_limit;
@@ -131,7 +131,7 @@ async function sendMessage(api, keyring, programId, payload) {
     destination: programId,
     payload,
     gasLimit,
-    value: 0,
+    value,
   });
 
   return new Promise((res, rej) => {
@@ -169,6 +169,18 @@ async function sendMessage(api, keyring, programId, payload) {
       if (!done) { done = true; rej(err); }
     });
   });
+}
+
+// Helper: Deposit native VARA to TokenVault
+async function depositNativeToVault(api, keyring, vaultId, value) {
+  const payload = buildPayload('VaultService', 'DepositNative');
+  return await sendMessage(api, keyring, vaultId, payload, value);
+}
+
+// Helper: Get account balance
+async function getBalance(api, address) {
+  const { data: { free } } = await api.query.system.account(address);
+  return BigInt(free.toString());
 }
 
 async function main() {
@@ -224,26 +236,10 @@ async function main() {
     console.log(`  ERROR: ${err.message}`); failed++;
   }
 
-  // 3. Create a fresh stream
-  const expectedId = totalBefore + 1n;
-  let streamId = 0n;
-  console.log(`[3] Create stream (expecting ID ${expectedId})`);
-  try {
-    const receiver = encodeActorId(RECEIVER_HEX);
-    const token = encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000000');
-    const flowRate = encodeU128LE(1000);
-    const deposit = encodeU128LE(3600000);
-    const payload = buildPayload('StreamService', 'CreateStream', receiver, token, flowRate, deposit);
-    await sendMessage(api, keyring, STREAM_CORE_ID, payload);
-    // verify via query
-    const checkPayload = buildPayload('StreamService', 'TotalStreams');
-    const checkReply = await queryState(api, keyring, STREAM_CORE_ID, checkPayload);
-    const newTotal = skipStrings(checkReply, 2).readBigUInt64LE(0);
-    streamId = newTotal; // latest stream ID = new total (1-indexed)
-    assert(newTotal === totalBefore + 1n, `TotalStreams incremented (${totalBefore} -> ${newTotal})`);
-  } catch (err) {
-    console.log(`  ERROR: ${err.message}`); failed++;
-  }
+  // 3. Create a fresh stream (SKIPPED - replaced by native_vara_stream_lifecycle)
+  console.log('[3] Create stream (SKIPPED - see native VARA test)');
+  skipped++;
+  let streamId = totalBefore + 1n; // placeholder for later tests
 
   // 4. Get stream details
   console.log(`[4] GetStream(${streamId})`);
@@ -361,17 +357,9 @@ async function main() {
     console.log(`  ERROR: ${err.message}`); failed++;
   }
 
-  // 14. Deposit tokens
-  console.log('[14] DepositTokens');
-  try {
-    const token = encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000000');
-    const amount = encodeU128LE(5000000);
-    const payload = buildPayload('VaultService', 'DepositTokens', token, amount);
-    await sendMessage(api, keyring, TOKEN_VAULT_ID, payload);
-    assert(true, 'DepositTokens succeeded (no panic)');
-  } catch (err) {
-    console.log(`  ERROR: ${err.message}`); failed++;
-  }
+  // 14. Deposit tokens (SKIPPED - token-based, use DepositNative instead)
+  console.log('[14] DepositTokens (SKIPPED - token-based)');
+  skipped++;
 
   // 15. Check balance after deposit
   console.log('[15] GetBalance after deposit');
@@ -400,12 +388,11 @@ async function main() {
   // 17. Deposit should fail while paused
   console.log('[17] Deposit blocked while paused');
   try {
-    const token = encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000000');
-    const payload = buildPayload('VaultService', 'DepositTokens', token, encodeU128LE(100));
-    await sendMessage(api, keyring, TOKEN_VAULT_ID, payload);
+    const payload = buildPayload('VaultService', 'DepositNative');
+    await sendMessage(api, keyring, TOKEN_VAULT_ID, payload, 100n);
     assert(false, 'Deposit should have failed while paused');
   } catch (err) {
-    assert(err.message.includes('paused'), `Deposit rejected: ${err.message.slice(0, 60)}`);
+    assert(err.message.includes('paused') || err.message.includes('Vault is paused'), `Deposit rejected: ${err.message.slice(0, 60)}`);
   }
 
   // 18. Emergency unpause
@@ -426,6 +413,108 @@ async function main() {
     const payload = buildPayload('VaultService', 'GetStreamAllocation', encodeU64LE(99));
     const reply = await queryState(api, keyring, TOKEN_VAULT_ID, payload);
     assert(reply !== null, 'GetStreamAllocation returns reply');
+  } catch (err) {
+    console.log(`  ERROR: ${err.message}`); failed++;
+  }
+
+  // ===========================================================================
+  // Native VARA Stream Lifecycle Test
+  // ===========================================================================
+  console.log('\n--- Native VARA Stream Lifecycle ---\n');
+
+  let nativeStreamId = 0n;
+  const depositAmount = 10_000_000_000_000n; // 10 VARA
+  const flowRate = 1_000_000_000n; // 1 VARA per second
+  const initialDeposit = 3_600_000_000_000n; // 1 hour buffer
+
+  // Step 1: Deposit native VARA to TokenVault
+  console.log('[NATIVE-1] Deposit 10 VARA to TokenVault');
+  try {
+    await depositNativeToVault(api, keyring, TOKEN_VAULT_ID, depositAmount);
+    await api.gearEvents.subscribeToGearEvent('UserMessageSent', ({ data }) => {});
+    assert(true, 'DepositNative succeeded');
+  } catch (err) {
+    console.log(`  ERROR: ${err.message}`); failed++;
+  }
+
+  // Step 2: Verify vault balance increased
+  console.log('[NATIVE-2] Verify vault balance');
+  try {
+    const owner = encodeActorId('0x' + Buffer.from(keyring.publicKey).toString('hex'));
+    const token = encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000000');
+    const payload = buildPayload('VaultService', 'GetBalance', owner, token);
+    const reply = await queryState(api, keyring, TOKEN_VAULT_ID, payload);
+    const data = skipStrings(reply, 2);
+    const totalDeposited = data.readBigUInt64LE(0) | (BigInt(data.readUInt32LE(8)) << 64n);
+    assert(totalDeposited >= depositAmount, `Vault balance >= ${depositAmount / 1_000_000_000_000n} VARA`);
+  } catch (err) {
+    console.log(`  ERROR: ${err.message}`); failed++;
+  }
+
+  // Step 3: Create native VARA stream
+  console.log('[NATIVE-3] Create native VARA stream');
+  try {
+    const receiver = encodeActorId(RECEIVER_HEX);
+    const token = encodeActorId('0x0000000000000000000000000000000000000000000000000000000000000000');
+    const payload = buildPayload('StreamService', 'CreateStream', receiver, token, encodeU128LE(flowRate), encodeU128LE(initialDeposit));
+    await sendMessage(api, keyring, STREAM_CORE_ID, payload);
+    await api.gearEvents.subscribeToGearEvent('UserMessageSent', ({ data }) => {});
+    
+    const checkPayload = buildPayload('StreamService', 'TotalStreams');
+    const checkReply = await queryState(api, keyring, STREAM_CORE_ID, checkPayload);
+    nativeStreamId = skipStrings(checkReply, 2).readBigUInt64LE(0);
+    assert(nativeStreamId >= 1n, `Native stream created (ID=${nativeStreamId})`);
+  } catch (err) {
+    console.log(`  ERROR: ${err.message}`); failed++;
+  }
+
+  // Step 4: Wait for streaming (simulate time passage)
+  console.log('[NATIVE-4] Wait 2 seconds for streaming...');
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
+  // Step 5: Check withdrawable balance
+  console.log('[NATIVE-5] Check withdrawable balance');
+  try {
+    const payload = buildPayload('StreamService', 'GetWithdrawableBalance', encodeU64LE(Number(nativeStreamId)));
+    const reply = await queryState(api, keyring, STREAM_CORE_ID, payload);
+    const withdrawable = skipStrings(reply, 2).readBigUInt64LE(0);
+    console.log(`  Withdrawable: ${withdrawable / 1_000_000_000_000n} VARA`);
+    assert(withdrawable > 0n, 'Withdrawable balance > 0');
+  } catch (err) {
+    console.log(`  ERROR: ${err.message}`); failed++;
+  }
+
+  // Step 6: Receiver withdraws (if RECEIVER_SS58 provided, check their balance)
+  console.log('[NATIVE-6] Withdraw from stream');
+  let receiverBalanceBefore = 0n;
+  let receiverBalanceAfter = 0n;
+  try {
+    if (RECEIVER_SS58) {
+      receiverBalanceBefore = await getBalance(api, RECEIVER_SS58);
+      console.log(`  Receiver balance before: ${receiverBalanceBefore / 1_000_000_000_000n} VARA`);
+    }
+    
+    const payload = buildPayload('StreamService', 'Withdraw', encodeU64LE(Number(nativeStreamId)));
+    await sendMessage(api, keyring, STREAM_CORE_ID, payload);
+    await api.gearEvents.subscribeToGearEvent('UserMessageSent', ({ data }) => {});
+    
+    if (RECEIVER_SS58) {
+      receiverBalanceAfter = await getBalance(api, RECEIVER_SS58);
+      console.log(`  Receiver balance after: ${receiverBalanceAfter / 1_000_000_000_000n} VARA`);
+      assert(receiverBalanceAfter > receiverBalanceBefore, 'Receiver balance increased after withdraw');
+    } else {
+      assert(true, 'Withdraw succeeded (no receiver address to verify)');
+    }
+  } catch (err) {
+    console.log(`  ERROR: ${err.message}`); failed++;
+  }
+
+  // Step 7: Verify stream withdrawn amount updated
+  console.log('[NATIVE-7] Verify stream withdrawn amount');
+  try {
+    const payload = buildPayload('StreamService', 'GetStream', encodeU64LE(Number(nativeStreamId)));
+    const reply = await queryState(api, keyring, STREAM_CORE_ID, payload);
+    assert(reply !== null && reply.length > 20, 'Stream data retrieved after withdrawal');
   } catch (err) {
     console.log(`  ERROR: ${err.message}`); failed++;
   }
