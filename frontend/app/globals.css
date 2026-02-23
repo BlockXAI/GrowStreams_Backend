@@ -1,0 +1,563 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Provn Color System */
+  --provn-bg: #0a0a0a;
+  --provn-surface: #111111;
+  --provn-surface-2: #161616;
+  --provn-text: #f5f5f5;
+  --provn-muted: #b3b3b3;
+  --provn-border: #2a2a2a;
+  --provn-accent: #ff6d01;
+  --provn-accent-press: #e56100;
+  --provn-accent-subtle: rgba(255, 109, 1, 0.14);
+  --provn-success: #27c27a;
+  --provn-warning: #f5a524;
+  --provn-error: #ff4d4f;
+
+  /* Required shadcn variables */
+  --background: var(--provn-bg);
+  --foreground: var(--provn-text);
+  --card: var(--provn-surface);
+  --card-foreground: var(--provn-text);
+  --popover: var(--provn-surface);
+  --popover-foreground: var(--provn-text);
+  --primary: var(--provn-accent);
+  --primary-foreground: var(--provn-bg);
+  --secondary: var(--provn-surface-2);
+  --secondary-foreground: var(--provn-text);
+  --muted: var(--provn-surface-2);
+  --muted-foreground: var(--provn-muted);
+  --accent: var(--provn-accent);
+  --accent-foreground: var(--provn-bg);
+  --destructive: var(--provn-error);
+  --destructive-foreground: var(--provn-text);
+  --border: var(--provn-border);
+  --input: var(--provn-border);
+  --ring: var(--provn-accent);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.75rem;
+  --sidebar: var(--provn-surface);
+  --sidebar-foreground: var(--provn-text);
+  --sidebar-primary: var(--provn-accent);
+  --sidebar-primary-foreground: var(--provn-bg);
+  --sidebar-accent: var(--provn-surface-2);
+  --sidebar-accent-foreground: var(--provn-text);
+  --sidebar-border: var(--provn-border);
+  --sidebar-ring: var(--provn-accent);
+}
+
+.dark {
+  /* Provn Dark Mode Variants */
+  --provn-bg: #111111;
+  --provn-surface: #161616;
+  --provn-surface-2: #1a1a1a;
+  --provn-text: #e0e0e0;
+  --provn-muted: #8a8a8a;
+  --provn-border: #3a3a3a;
+  --provn-accent: #ffa501;
+  --provn-accent-press: #e58a00;
+  --provn-accent-subtle: rgba(255, 165, 1, 0.14);
+  --provn-success: #32cd32;
+  --provn-warning: #ffd700;
+  --provn-error: #ff6347;
+
+  /* Update shadcn variables for dark mode */
+  --background: var(--provn-bg);
+  --foreground: var(--provn-text);
+  --card: var(--provn-surface);
+  --card-foreground: var(--provn-text);
+  --popover: var(--provn-surface);
+  --popover-foreground: var(--provn-text);
+  --primary: var(--provn-accent);
+  --primary-foreground: var(--provn-bg);
+  --secondary: var(--provn-surface-2);
+  --secondary-foreground: var(--provn-text);
+  --muted: var(--provn-surface-2);
+  --muted-foreground: var(--provn-muted);
+  --accent: var(--provn-accent);
+  --accent-foreground: var(--provn-bg);
+  --destructive: var(--provn-error);
+  --destructive-foreground: var(--provn-text);
+  --border: var(--provn-border);
+  --input: var(--provn-border);
+  --ring: var(--provn-accent);
+  --sidebar: var(--provn-surface);
+  --sidebar-foreground: var(--provn-text);
+  --sidebar-primary: var(--provn-accent);
+  --sidebar-primary-foreground: var(--provn-bg);
+  --sidebar-accent: var(--provn-surface-2);
+  --sidebar-accent-foreground: var(--provn-text);
+  --sidebar-border: var(--provn-border);
+  --sidebar-ring: var(--provn-accent);
+}
+
+
+@layer base {
+  * {
+    @apply border-border;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-space-grotesk), 'Space Grotesk', system-ui, -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* Typography classes for Provn design system */
+  .font-headline {
+    font-family: var(--font-space-grotesk), 'Space Grotesk', sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 500;
+    font-style: normal;
+  }
+
+  .font-body {
+    font-family: var(--font-space-grotesk), 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Added scrollbar hiding utility for Provs feed */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Added slider styling for campaign creation */
+  .slider {
+    background: var(--provn-surface-2);
+    outline: none;
+    border-radius: 8px;
+  }
+
+  .slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--provn-accent);
+    cursor: pointer;
+    border: 2px solid var(--provn-bg);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  .slider::-webkit-slider-thumb:hover {
+    background: var(--provn-accent-press);
+    transform: scale(1.1);
+    transition: all 0.2s ease;
+  }
+
+  .slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--provn-accent);
+    cursor: pointer;
+    border: 2px solid var(--provn-bg);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Enhanced Slider Styles for Calculator */
+  .slider-enhanced {
+    background: linear-gradient(to right, var(--provn-accent) 0%, var(--provn-accent) 50%, var(--provn-surface-2) 50%, var(--provn-surface-2) 100%);
+    background-size: 100% 100%;
+    transition: all 0.3s ease;
+  }
+
+  .slider-enhanced::-webkit-slider-thumb {
+    appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--provn-accent), var(--provn-accent-press));
+    cursor: pointer;
+    border: 3px solid var(--provn-bg);
+    box-shadow: 0 4px 12px rgba(255, 109, 1, 0.3), 0 0 0 0 rgba(255, 109, 1, 0.5);
+    transition: all 0.2s ease;
+  }
+
+  .slider-enhanced::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 6px 16px rgba(255, 109, 1, 0.4), 0 0 0 8px rgba(255, 109, 1, 0.1);
+  }
+
+  .slider-enhanced::-webkit-slider-thumb:active {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(255, 109, 1, 0.5), 0 0 0 4px rgba(255, 109, 1, 0.2);
+  }
+
+  .slider-enhanced::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--provn-accent), var(--provn-accent-press));
+    cursor: pointer;
+    border: 3px solid var(--provn-bg);
+    box-shadow: 0 4px 12px rgba(255, 109, 1, 0.3);
+    transition: all 0.2s ease;
+  }
+
+  .slider-enhanced::-moz-range-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 6px 16px rgba(255, 109, 1, 0.4);
+  }
+
+  .slider::-moz-range-thumb:hover {
+    background: var(--provn-accent-press);
+    transform: scale(1.1);
+  }
+
+  /* Grain texture for depth */
+  body:after {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.01) 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.05;
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Button shimmer sweep */
+  @keyframes shimmer {
+    0% { transform: translateX(-100%) skewX(-15deg); }
+    100% { transform: translateX(200%) skewX(-15deg); }
+  }
+
+  .btn-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-shimmer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    transform: translateX(-100%) skewX(-15deg);
+  }
+
+  .btn-shimmer:hover::after {
+    animation: shimmer 0.75s ease-out;
+  }
+
+  /* Animated gradient border (conic) */
+  @keyframes border-rotate {
+    0% { --border-angle: 0deg; }
+    100% { --border-angle: 360deg; }
+  }
+
+  @property --border-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+  }
+
+  .animated-border {
+    --border-angle: 0deg;
+    background: conic-gradient(from var(--border-angle), #10b981, #06b6d4, #8b5cf6, #10b981) border-box;
+    border: 2px solid transparent;
+    animation: border-rotate 4s linear infinite;
+  }
+
+  /* Scroll progress bar */
+  .scroll-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #10b981, #06b6d4);
+    z-index: 9999;
+    transform-origin: left;
+  }
+
+  /* Focus glow for interactive elements */
+  .focus-glow:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--provn-bg), 0 0 0 4px rgba(16, 185, 129, 0.5);
+  }
+
+  /* Glow effects for dark mode */
+  .glow-effect {
+    box-shadow: 0 0 0 rgba(255, 109, 1, 0);
+    transition: box-shadow 0.3s ease;
+  }
+
+  .glow-effect:hover {
+    box-shadow: 0 0 25px rgba(255, 109, 1, 0.4);
+  }
+
+  /* 3D transform utilities */
+  .transform-3d {
+    transform-style: preserve-3d;
+  }
+
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
+
+  /* Magnetic hover effect */
+  .magnetic-hover {
+    transition: transform 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  /* Floating animation */
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0px) rotate(0deg);
+    }
+    33% {
+      transform: translateY(-10px) rotate(1deg);
+    }
+    66% {
+      transform: translateY(5px) rotate(-1deg);
+    }
+  }
+
+  .float-animation {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  /* Typing animation */
+  @keyframes typing {
+    from {
+      width: 0;
+    }
+    to {
+      width: 100%;
+    }
+  }
+
+  @keyframes blink {
+    50% {
+      border-color: transparent;
+    }
+  }
+
+  .typing-animation {
+    overflow: hidden;
+    border-right: 2px solid var(--provn-accent);
+    white-space: nowrap;
+    animation: typing 3s steps(40, end), blink 0.75s step-end infinite;
+  }
+
+  /* Particle system */
+  .particle {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: var(--provn-accent);
+    border-radius: 50%;
+    opacity: 0.6;
+    animation: particleFloat 8s linear infinite;
+  }
+
+  @keyframes particleFloat {
+    0% {
+      transform: translateY(100vh) translateX(0px);
+      opacity: 0;
+    }
+    10% {
+      opacity: 0.6;
+    }
+    90% {
+      opacity: 0.6;
+    }
+    100% {
+      transform: translateY(-100px) translateX(100px);
+      opacity: 0;
+    }
+  }
+
+  /* Scroll-triggered animations */
+  .scroll-reveal {
+    opacity: 0;
+    transform: translateY(50px);
+    transition: all 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .scroll-reveal.revealed {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Staggered animations */
+  .stagger-1 {
+    transition-delay: 0.1s;
+  }
+  .stagger-2 {
+    transition-delay: 0.2s;
+  }
+  .stagger-3 {
+    transition-delay: 0.3s;
+  }
+  .stagger-4 {
+    transition-delay: 0.4s;
+  }
+
+  /* Performance optimizations */
+  .gpu-accelerated {
+    transform: translateZ(0);
+    will-change: transform;
+  }
+
+  /* Low performance mode */
+  .low-performance .optional-animation {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Improved focus visibility */
+  :focus-visible {
+    outline: 2px solid var(--provn-accent);
+    outline-offset: 2px;
+  }
+
+  /* Screen reader only text */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* Custom Toast Styles */
+  .toast-custom {
+    background: var(--provn-surface) !important;
+    border: 1px solid var(--provn-border) !important;
+    color: var(--provn-text) !important;
+    border-radius: 12px !important;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+    font-family: var(--font-inter) !important;
+  }
+
+  /* Toast animations */
+  [data-sonner-toast] {
+    transform: translateX(var(--radix-toast-swipe-move-x));
+    transition: transform 0.2s ease-out;
+  }
+
+  [data-sonner-toast][data-y-position="top"] {
+    animation: slideInFromTop 0.3s ease-out;
+  }
+
+  @keyframes slideInFromTop {
+    from {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  /* Toast hover effects */
+  [data-sonner-toast]:hover {
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4) !important;
+    transform: scale(1.02);
+  }
+
+  /* Toast action button styling */
+  [data-sonner-toast] button[data-button] {
+    background: var(--provn-accent) !important;
+    color: var(--provn-bg) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 8px 16px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    transition: all 0.2s ease !important;
+  }
+
+  [data-sonner-toast] button[data-button]:hover {
+    background: var(--provn-accent-press) !important;
+    transform: scale(1.05);
+  }
+
+  /* Toast close button */
+  [data-sonner-toast] button[data-close-button] {
+    background: transparent !important;
+    color: var(--provn-muted) !important;
+    border: none !important;
+    padding: 4px !important;
+    border-radius: 4px !important;
+  }
+
+  [data-sonner-toast] button[data-close-button]:hover {
+    background: var(--provn-surface-2) !important;
+    color: var(--provn-text) !important;
+  }
+
+  /* Hide the default Camp Network wallet button that appears outside the layout, but not in navigation */
+  .buttons-module_connect-button__CJhUa:not(.camp-wallet-button) {
+    display: none !important;
+  }
+
+  /* Camp Network button styling for navigation */
+  .camp-wallet-button {
+    background-color: #ff6f00 !important;
+    border: none !important;
+    border-radius: 0.75rem !important;
+    box-shadow: inset 0 2px 0 hsla(0, 0%, 100%, 0.15), inset 0 -2px 4px rgba(0, 0, 0, 0.05), 0 1px 1px rgba(46, 54, 80, 0.075) !important;
+    color: #fff !important;
+    font-family: Satoshi, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Open Sans, Helvetica Neue, sans-serif !important;
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    height: 2.75rem !important;
+    line-height: 1.333rem !important;
+    padding-inline: 1rem !important;
+    position: relative !important;
+    transition: background-color 0.15s !important;
+    min-width: auto !important;
+  }
+
+  .camp-wallet-button:hover {
+    background-color: #e55a00 !important;
+  }
+
+  /* Hide any other Camp Network UI elements that might appear */
+  [data-testid="connect-button"],
+  .camp-connect-button,
+  .origin-connect-button {
+    display: none !important;
+  }
+}

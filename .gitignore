@@ -18,8 +18,12 @@ Cargo.lock
 # Node
 node_modules/
 .next/
+.vercel/
 dist/
 build/
+
+# Nested frontend repo backup
+frontend/.git.backup/
 
 # IDE
 .vscode/
