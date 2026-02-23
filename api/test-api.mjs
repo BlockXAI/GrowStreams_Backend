@@ -83,6 +83,7 @@ async function main() {
   });
 
   await run('[3] CreateStream', async () => {
+    const cfg = await get('/api/streams/config');
     const d = await post('/api/streams', {
       receiver: '0x0000000000000000000000000000000000000000000000000000000000000001',
       token: '0x0000000000000000000000000000000000000000000000000000000000000000',
@@ -91,8 +92,14 @@ async function main() {
     });
     assert(d.blockHash, `CreateStream tx confirmed: ${d.blockHash.slice(0,18)}...`);
     const t = await get('/api/streams/total');
-    streamId = Number(t.total);
-    assert(streamId === totalBefore + 1, `TotalStreams incremented (${totalBefore} -> ${streamId})`);
+    const totalAfter = Number(t.total);
+    assert(totalAfter === totalBefore + 1, `TotalStreams incremented (${totalBefore} -> ${totalAfter})`);
+    if (d.result != null) {
+      streamId = Number(d.result);
+    } else {
+      const senderStreams = await get(`/api/streams/sender/${cfg.admin}`);
+      streamId = Number(senderStreams.streamIds[senderStreams.streamIds.length - 1]);
+    }
   });
 
   await run('[4] GetStream', async () => {
@@ -222,6 +229,7 @@ async function main() {
   });
 
   await run('[22] CreateSplitGroup', async () => {
+    const cfg = await get('/api/streams/config');
     const d = await post('/api/splits', {
       recipients: [
         { address: '0x0000000000000000000000000000000000000000000000000000000000000001', weight: 50 },
@@ -230,9 +238,13 @@ async function main() {
       ],
     });
     assert(d.blockHash, 'CreateSplitGroup succeeded');
-    const t = await get('/api/splits/total');
-    splitGroupId = Number(t.total);
-    assert(splitGroupId >= 1, `SplitGroup created (id=${splitGroupId})`);
+    if (d.result != null) {
+      splitGroupId = Number(d.result);
+    } else {
+      const groups = await get(`/api/splits/owner/${cfg.admin}`);
+      splitGroupId = Number(groups.groupIds[groups.groupIds.length - 1]);
+    }
+    assert(splitGroupId >= 0, `SplitGroup created (id=${splitGroupId})`);
   });
 
   await run('[23] GetSplitGroup', async () => {
@@ -333,6 +345,7 @@ async function main() {
   });
 
   await run('[37] CreateBounty', async () => {
+    const cfg = await get('/api/streams/config');
     const d = await post('/api/bounty', {
       title: 'Fix login bug',
       token: '0x0000000000000000000000000000000000000000000000000000000000000000',
@@ -341,9 +354,13 @@ async function main() {
       totalBudget: '10000000',
     });
     assert(d.blockHash, 'CreateBounty succeeded');
-    const t = await get('/api/bounty/total');
-    bountyId = Number(t.total);
-    assert(bountyId >= 1, `Bounty created (id=${bountyId})`);
+    if (d.result != null) {
+      bountyId = Number(d.result);
+    } else {
+      const creatorBounties = await get(`/api/bounty/creator/${cfg.admin}`);
+      bountyId = Number(creatorBounties.bountyIds[creatorBounties.bountyIds.length - 1]);
+    }
+    assert(bountyId >= 0, `Bounty created (id=${bountyId})`);
   });
 
   await run('[38] GetBounty', async () => {

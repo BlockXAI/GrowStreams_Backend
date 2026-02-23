@@ -55,12 +55,19 @@ const SERVICE_NAMES = {
 };
 
 function loadDeployState() {
-  const statePath = resolve(PROJECT_ROOT, 'deploy-state.json');
-  try {
-    return JSON.parse(readFileSync(statePath, 'utf-8'));
-  } catch {
-    return {};
+  const candidates = [
+    resolve(API_ROOT, 'deploy-state.json'),
+    resolve(PROJECT_ROOT, 'deploy-state.json'),
+  ];
+  for (const p of candidates) {
+    try {
+      if (existsSync(p)) {
+        console.log(`[sails] Loading deploy state from ${p}`);
+        return JSON.parse(readFileSync(p, 'utf-8'));
+      }
+    } catch { /* skip */ }
   }
+  return {};
 }
 
 const DEPLOY_KEY_MAP = {
@@ -221,5 +228,6 @@ export function encodePayload(contractName, fnName, ...args) {
   if (!fn) throw new Error(`Function ${fnName} not found`);
 
   const payload = fn.encodePayload(...args);
+  if (typeof payload === 'string') return payload;
   return '0x' + Buffer.from(payload).toString('hex');
 }
