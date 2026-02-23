@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getApi, getKeyring, getStreamCoreId, getTokenVaultId } from '../gear.mjs';
+import { getApi, getKeyring, getProgramIds } from '../sails-client.mjs';
 
 const router = Router();
 
@@ -20,10 +20,7 @@ router.get('/', async (req, res) => {
     network: api ? api.runtimeChain.toString() : null,
     account: keyring ? keyring.address : null,
     balance,
-    contracts: {
-      streamCore: getStreamCoreId(),
-      tokenVault: getTokenVaultId(),
-    },
+    contracts: getProgramIds(),
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });

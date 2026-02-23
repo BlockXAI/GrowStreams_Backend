@@ -1,0 +1,44 @@
+{
+  "stream-core": {
+    "programId": "0xf8e1e0ab81434b94357c1203b681206931c2e30ef350c0aac8fcfac45c2ea249",
+    "codeId": "0x87ab0f169352b0132d478b586de048033cf7bb048fc83aea5f8cac22756b9087",
+    "deployedAt": "2026-02-22T21:31:16.050Z",
+    "network": "vara-testnet",
+    "node": "wss://testnet.vara.network"
+  },
+  "token-vault": {
+    "programId": "0x25e433af499bd4428c8bf9b190722e8f9b66339d08df3d7b84bc31565d997d3e",
+    "codeId": "0x61c0a68a015db78ad6f3e170a52fc66e5d6b2a6c1953914fbb86262be026d2b6",
+    "deployedAt": "2026-02-22T21:31:28.057Z",
+    "network": "vara-testnet",
+    "node": "wss://testnet.vara.network"
+  },
+  "splits-router": {
+    "programId": "0xe4fe59166d824a0f710488b02e039f3fe94980756e3571fc93ba083b5b88b894",
+    "codeId": "0x254fcd4db04e27f82ec7a592bc8ffba9c76cfe47b54fbf01a8b2ac0ea9563a28",
+    "deployedAt": "2026-02-22T22:39:15.136Z",
+    "network": "vara-testnet",
+    "node": "wss://testnet.vara.network"
+  },
+  "permission-manager": {
+    "programId": "0x6cce66023765a57cbc6adf5dfe7df66ee636af56ab7d92a8f614bd8c229f88cb",
+    "codeId": "0x2ea34125c8d396efbdec7e87ef448eceda162f51c63ec05ef3a949ec856d3a98",
+    "deployedAt": "2026-02-22T22:40:35.218Z",
+    "network": "vara-testnet",
+    "node": "wss://testnet.vara.network"
+  },
+  "bounty-adapter": {
+    "programId": "0xd5377611a285d3efcbe9369361647d13f3a9c60ed70d648eaa21c08c72268f81",
+    "codeId": "0xcf516af8a9c219e6cc66aedb32f598ca6b8cb561f5c49ba73dc6e2c9362123f4",
+    "deployedAt": "2026-02-22T22:42:15.468Z",
+    "network": "vara-testnet",
+    "node": "wss://testnet.vara.network"
+  },
+  "identity-registry": {
+    "programId": "0xb6389d1da594b84a73f3a5178caa25ff56ec0f57f2f8a9d42f8b1b6fba9d948a",
+    "codeId": "0xeb639717ee6a21aa9c4a403736b04bdd8af5b5e3d8b93102518fbc4692df94bb",
+    "deployedAt": "2026-02-22T22:47:07.776Z",
+    "network": "vara-testnet",
+    "node": "wss://testnet.vara.network"
+  }
+}

@@ -1,0 +1,74 @@
+// GrowStreams V2 — TokenVault IDL
+// Deposit/buffer management, safe fungible token handling, emergency pause
+
+type VaultBalance = struct {
+  owner: actor_id,
+  token: actor_id,
+  total_deposited: u128,
+  total_allocated: u128,
+  available: u128,
+};
+
+type VaultConfig = struct {
+  admin: actor_id,
+  stream_core: actor_id,
+  paused: bool,
+  total_tokens_held: u128,
+};
+
+constructor {
+  New : (admin: actor_id, stream_core: actor_id);
+};
+
+service VaultService {
+  // --- Mutations ---
+  DepositTokens : (token: actor_id, amount: u128) -> result (null, str);
+  WithdrawTokens : (token: actor_id, amount: u128) -> result (null, str);
+  AllocateToStream : (owner: actor_id, token: actor_id, amount: u128, stream_id: u64) -> result (null, str);
+  ReleaseFromStream : (owner: actor_id, token: actor_id, amount: u128, stream_id: u64) -> result (null, str);
+  TransferToReceiver : (token: actor_id, receiver: actor_id, amount: u128, stream_id: u64) -> result (null, str);
+  EmergencyPause : () -> result (null, str);
+  EmergencyUnpause : () -> result (null, str);
+
+  // --- Queries ---
+  query GetBalance : (owner: actor_id, token: actor_id) -> VaultBalance;
+  query GetStreamAllocation : (stream_id: u64) -> u128;
+  query IsPaused : () -> bool;
+  query GetConfig : () -> VaultConfig;
+
+  // --- Events ---
+  events {
+    TokensDeposited: struct {
+      owner: actor_id,
+      token: actor_id,
+      amount: u128,
+      new_balance: u128,
+    };
+    TokensWithdrawn: struct {
+      owner: actor_id,
+      token: actor_id,
+      amount: u128,
+      remaining: u128,
+    };
+    StreamAllocated: struct {
+      stream_id: u64,
+      owner: actor_id,
+      token: actor_id,
+      amount: u128,
+    };
+    StreamReleased: struct {
+      stream_id: u64,
+      owner: actor_id,
+      token: actor_id,
+      amount: u128,
+    };
+    ReceiverPaid: struct {
+      stream_id: u64,
+      receiver: actor_id,
+      token: actor_id,
+      amount: u128,
+    };
+    VaultPaused: struct { paused_by: actor_id, timestamp: u64 };
+    VaultUnpaused: struct { unpaused_by: actor_id, timestamp: u64 };
+  }
+};

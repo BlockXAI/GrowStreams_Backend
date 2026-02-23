@@ -8,17 +8,21 @@ GrowStreams V2 is a generalized, token-agnostic money streaming infrastructure b
 
 ## Deployed Contracts (Vara Testnet)
 
-| Contract | Program ID | Code ID |
-|---|---|---|
-| **StreamCore** | `0xf8e1e0ab…c2ea249` | `0x87ab0f16…56b9087` |
-| **TokenVault** | `0x25e433af…997d3e` | `0x61c0a68a…026d2b6` |
+| Contract | Program ID |
+|---|---|
+| **StreamCore** | `0xf8e1e0ab…c2ea249` |
+| **TokenVault** | `0x25e433af…997d3e` |
+| **SplitsRouter** | `0xe4fe5916…88b894` |
+| **PermissionManager** | `0x6cce6602…9f88cb` |
+| **BountyAdapter** | `0xd5377611…268f81` |
+| **IdentityRegistry** | `0xb6389d1d…9d948a` |
 
 | Detail | Value |
 |---|---|
 | **Network** | Vara Testnet (`wss://testnet.vara.network`) |
 | **Deployed** | 23 Feb 2026 |
 | **Admin** | `kGkLork3scX9ngz3vhFywax2uC3LUfp7m1PMxkQXdtdsnYiZA` |
-| **E2E Tests** | 21/21 passing |
+| **E2E Tests** | 53/53 passing |
 | **Explorer** | [idea.gear-tech.io/programs](https://idea.gear-tech.io/programs?node=wss://testnet.vara.network) |
 
 <details>
@@ -26,42 +30,26 @@ GrowStreams V2 is a generalized, token-agnostic money streaming infrastructure b
 
 - **StreamCore:** `0xf8e1e0ab81434b94357c1203b681206931c2e30ef350c0aac8fcfac45c2ea249`
 - **TokenVault:** `0x25e433af499bd4428c8bf9b190722e8f9b66339d08df3d7b84bc31565d997d3e`
+- **SplitsRouter:** `0xe4fe59166d824a0f710488b02e039f3fe94980756e3571fc93ba083b5b88b894`
+- **PermissionManager:** `0x6cce66023765a57cbc6adf5dfe7df66ee636af56ab7d92a8f614bd8c229f88cb`
+- **BountyAdapter:** `0xd5377611a285d3efcbe9369361647d13f3a9c60ed70d648eaa21c08c72268f81`
+- **IdentityRegistry:** `0xb6389d1da594b84a73f3a5178caa25ff56ec0f57f2f8a9d42f8b1b6fba9d948a`
 </details>
 
 ---
 
-## E2E Test Results
+## E2E Test Results — 53/53 Pass
 
 All contract functions verified on Vara testnet with real transactions:
 
-### StreamCore — 11/11 Pass
-
-| # | Test | Result |
+| Contract | Tests | Status |
 |---|---|---|
-| 1 | `GetConfig` — returns admin + buffer config | PASS |
-| 2 | `TotalStreams` — reads current count | PASS |
-| 3 | `CreateStream` — new stream, total increments | PASS |
-| 4 | `GetStream` — returns full stream data | PASS |
-| 5 | `ActiveStreams` — count increases after create | PASS |
-| 6 | `PauseStream` — pauses active stream | PASS |
-| 7 | `ResumeStream` — resumes paused stream | PASS |
-| 8 | `Deposit` — adds buffer to active stream | PASS |
-| 9 | `UpdateStream` — changes flow rate | PASS |
-| 10 | `GetSenderStreams` — returns sender's stream IDs | PASS |
-| 11 | `StopStream` — stops stream permanently | PASS |
-
-### TokenVault — 8/8 Pass
-
-| # | Test | Result |
-|---|---|---|
-| 12 | `GetConfig` — returns admin + pause state | PASS |
-| 13 | `IsPaused` — reads pause state | PASS |
-| 14 | `DepositTokens` — deposits to vault | PASS |
-| 15 | `GetBalance` — returns balance after deposit | PASS |
-| 16 | `EmergencyPause` — admin pauses vault | PASS |
-| 17 | Deposit blocked while paused | PASS |
-| 18 | `EmergencyUnpause` — admin unpauses vault | PASS |
-| 19 | `GetStreamAllocation` — reads allocation | PASS |
+| **StreamCore** | 11 tests (create, pause, resume, deposit, update, stop, queries) | 11/11 |
+| **TokenVault** | 8 tests (deposit, withdraw, pause, unpause, balance, allocation) | 8/8 |
+| **SplitsRouter** | 10 tests (create group, update, preview, distribute, delete) | 10/10 |
+| **PermissionManager** | 8 tests (grant, check, revoke, revoke-all, queries) | 8/8 |
+| **BountyAdapter** | 10 tests (create, claim, verify, adjust, complete, cancel) | 10/10 |
+| **IdentityRegistry** | 6 tests (bind, lookup, update score, revoke) | 6/6 |
 
 ---
 
@@ -201,28 +189,35 @@ growstreams-v2/
 ├── contracts/                 # Vara/Gear smart contracts (Rust + Sails)
 │   ├── stream-core/           # Core streaming state machine
 │   ├── token-vault/           # Deposit & buffer management
-│   ├── splits-router/         # Weighted distribution (planned)
-│   ├── permission-manager/    # Delegation & roles (planned)
-│   ├── adapters/              # App-specific adapters
-│   │   └── bounty-adapter/    # AI scoring → stream trigger (planned)
-│   └── identity-registry/     # V1 GitHub identity (carried forward)
+│   ├── splits-router/         # Weighted fund distribution
+│   ├── permission-manager/    # Delegation & roles
+│   ├── adapters/
+│   │   └── bounty-adapter/    # AI scoring → stream trigger
+│   └── identity-registry/     # GitHub identity binding (V1)
+├── api/                       # REST API backend (Express + sails-js)
+│   ├── src/
+│   │   ├── index.mjs          # Express entry point
+│   │   ├── sails-client.mjs   # Sails IDL parser + contract instances
+│   │   └── routes/            # Route handlers for all 6 contracts
+│   ├── idl/                   # Bundled IDL files for deployment
+│   ├── railway.json           # Railway deployment config
+│   └── Procfile
+├── sdk/                       # TypeScript SDK (@growstreams/sdk)
+│   ├── src/
+│   │   ├── client.ts          # GrowStreams client class
+│   │   ├── types.ts           # Type definitions
+│   │   └── index.ts           # Package entry
+│   └── dist/                  # Compiled JS + type declarations
 ├── artifacts/                 # Compiled .opt.wasm files
 ├── scripts/
 │   ├── build.sh               # Build contracts to WASM
-│   └── deploy-js/             # Node.js deploy + E2E test scripts
+│   └── deploy-js/
 │       ├── deploy.mjs         # Deploy to Vara testnet
-│       └── e2e-test.mjs       # Full E2E test suite (21 tests)
+│       └── e2e-test.mjs       # Full E2E test suite (53 tests)
 ├── docs/                      # Technical documentation
-│   ├── protocol.md
-│   ├── contracts-api.md
-│   ├── sdk-quickstart.md
-│   └── security.md
-├── content/                   # Marketing & social content
-│   └── twitter-plan.md
 ├── deploy-state.json          # Deployed program IDs
-├── .env.example               # Environment template (seed phrase, node URL)
-├── PLAN.md                    # Execution plan & gap analysis
-└── README.md                  # This file
+├── PLAN.md                    # Execution plan
+└── README.md
 ```
 
 ---
@@ -284,20 +279,80 @@ cd scripts/deploy-js
 node e2e-test.mjs
 ```
 
-### Create a Stream (SDK — coming soon)
+### Start the REST API
+
+```bash
+cd api
+npm install
+cp .env.example .env   # edit with your seed / contract IDs
+npm run dev
+# → http://localhost:3000
+```
+
+The API auto-loads program IDs from `deploy-state.json`. Environment variables override if set.
+
+### REST API — Key Endpoints
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health` | GET | Node status, balance, all contract IDs |
+| `/api/streams/config` | GET | Admin, buffer config, next stream ID |
+| `/api/streams/:id` | GET | Full stream data |
+| `/api/streams` | POST | Create a new stream |
+| `/api/streams/:id/pause` | POST | Pause an active stream |
+| `/api/vault/balance/:owner/:token` | GET | Vault balance for an address |
+| `/api/splits/:id/preview/:amount` | GET | Preview distribution shares |
+| `/api/bounty/open` | GET | List all open bounties |
+| `/api/identity/github/:username` | GET | Look up actor by GitHub handle |
+
+All POST routes accept `{ "mode": "payload" }` to return an encoded payload for **client-side wallet signing** instead of server-side execution.
+
+Full endpoint list: `GET /`
+
+### TypeScript SDK
+
+```bash
+cd sdk && npm install && npm run build
+```
+
 ```typescript
 import { GrowStreams } from '@growstreams/sdk';
 
-const gs = new GrowStreams({ network: 'vara-testnet' });
+const gs = new GrowStreams({ baseUrl: 'https://your-api.railway.app' });
 
-const stream = await gs.createStream({
-  receiver: '0xReceiver...',
-  token: 'USDC',
-  flowRate: '38580',
-  buffer: '1000000',
+// Check protocol health
+const health = await gs.health();
+console.log(health.contracts);
+
+// Query a stream
+const stream = await gs.streams.get(1);
+console.log(stream.flow_rate, stream.status);
+
+// Create a stream (server-signed)
+const tx = await gs.streams.create({
+  receiver: '0x0001...',
+  token: '0x0000...',
+  flowRate: '1000',
+  initialDeposit: '5000000',
 });
+console.log('Block:', tx.blockHash);
 
-console.log('Stream ID:', stream.id);
+// Get encoded payload for wallet signing
+const { payload } = await gs.streams.create({
+  receiver: '0x0001...',
+  token: '0x0000...',
+  flowRate: '1000',
+  initialDeposit: '5000000',
+  mode: 'payload',
+});
+// → sign `payload` with user wallet and submit to Vara
+
+// Bounties
+const bounty = await gs.bounty.get(1);
+const open = await gs.bounty.open();
+
+// Identity
+const binding = await gs.identity.byGithub('octocat');
 ```
 
 ---
@@ -341,17 +396,33 @@ console.log('Stream ID:', stream.id);
 
 ---
 
+## Revenue Model
+
+GrowStreams is designed as open protocol infrastructure with sustainable revenue streams:
+
+| Revenue Source | Mechanism |
+|---|---|
+| **Protocol Fee** | Small % fee on every stream (configurable by governance, initially 0.1–0.5%) |
+| **Premium API Tiers** | Free tier for reads; paid tiers for higher throughput, webhooks, and analytics |
+| **Hosted SDK** | Managed API hosting for teams that don't want to run their own node |
+| **Adapter Marketplace** | Revenue share from third-party adapters built on the protocol |
+| **Enterprise Deployments** | Custom contract deployments with SLA guarantees |
+
+The protocol fee is collected at the contract level during stream settlement, making it trustless and transparent.
+
+---
+
 ## Success Metrics
 
-| Metric | Target (M0–M1) | Current |
+| Metric | Target (M1) | Current |
 |---|---|---|
-| Core contracts deployed | 2 (StreamCore + TokenVault) | 2 |
-| E2E tests passing | 100% | 21/21 (100%) |
-| Streams created on testnet | 100+ | 3+ (testing) |
-| Active streams | 20+ concurrent | — |
-| Total volume streamed | $10K+ equivalent | — |
-| Time-to-first-stream (dev) | < 10 minutes | — |
-| SDK downloads / repo stars | 50+ | — |
+| Contracts deployed | 6 | 6/6 |
+| E2E tests passing | 100% | 53/53 (100%) |
+| REST API endpoints | 40+ | 40+ (all contracts) |
+| TypeScript SDK | Published | Built, ready to publish |
+| Streams created on testnet | 100+ | 6+ (testing) |
+| Active streams | 20+ concurrent | 1 |
+| Time-to-first-stream (dev) | < 10 minutes | Ready (SDK + API) |
 
 ---
 

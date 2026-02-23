@@ -1,6 +1,6 @@
 {
   "name": "growstreams-api",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,10 @@
     "dev": "node --watch src/index.mjs"
   },
   "dependencies": {
-    "@gear-js/api": "^0.44.2",
+    "@gear-js/api": "0.38.3",
+    "@polkadot/api": "13.2.1",
+    "sails-js": "0.3.1",
+    "sails-js-parser": "0.3.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
