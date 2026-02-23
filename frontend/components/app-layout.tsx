@@ -9,6 +9,9 @@ import {
   Trophy, Fingerprint, Wallet, LogOut, Menu, X,
 } from 'lucide-react';
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
+
+const PixelBlast = dynamic(() => import('@/components/ui/PixelBlast'), { ssr: false });
 
 const navItems = [
   { href: '/app', label: 'Dashboard', icon: LayoutDashboard },
@@ -32,7 +35,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen bg-provn-bg text-provn-text overflow-hidden">
+    <div className="flex h-screen bg-provn-bg text-provn-text overflow-hidden relative">
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-40">
+        <PixelBlast
+          variant="square"
+          pixelSize={4}
+          color="#10b981"
+          patternScale={2}
+          patternDensity={1}
+          pixelSizeJitter={0}
+          enableRipples
+          rippleSpeed={0.4}
+          rippleThickness={0.12}
+          rippleIntensityScale={1.5}
+          speed={0.3}
+          edgeFade={0.25}
+          transparent
+        />
+      </div>
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/60 z-30 lg:hidden"
@@ -41,7 +61,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       )}
 
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-40 w-64 bg-provn-surface border-r border-provn-border flex flex-col transition-transform duration-200 ${
+        className={`fixed lg:static inset-y-0 left-0 z-40 w-64 bg-provn-surface/95 backdrop-blur-sm border-r border-provn-border flex flex-col transition-transform duration-200 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -95,7 +115,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 border-b border-provn-border flex items-center px-4 lg:px-6 bg-provn-surface/50 backdrop-blur-sm flex-shrink-0">
+        <header className="h-14 border-b border-provn-border flex items-center px-4 lg:px-6 bg-provn-surface/80 backdrop-blur-sm flex-shrink-0 relative z-10">
           <button
             onClick={() => setSidebarOpen(true)}
             className="lg:hidden mr-3 p-1.5 rounded-lg hover:bg-provn-border/30"
@@ -112,7 +132,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <div className="flex-1 overflow-y-auto p-4 lg:p-6 relative z-10">
           {children}
         </div>
       </main>

@@ -3,8 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useAccount } from '@gear-js/react-hooks';
 import { api, type HealthData, type StreamConfig } from '@/lib/growstreams-api';
-import { Waves, Vault, GitFork, Trophy, Activity, TrendingUp } from 'lucide-react';
+import { Waves, Vault, GitFork, Trophy, Activity, TrendingUp, Zap, Shield, Layers } from 'lucide-react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+
+const ShaderCard = dynamic(() => import('@/components/ui/shader-card'), { ssr: false });
+const DepthCard = dynamic(() => import('@/components/ui/depth-card'), { ssr: false });
 
 function StatCard({ label, value, icon: Icon, href, color }: {
   label: string; value: string; icon: React.ElementType; href: string; color: string;
@@ -132,16 +136,119 @@ export default function DashboardPage() {
       )}
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <Link href="/app/streams" className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 rounded-xl p-6 hover:border-emerald-500/40 transition-colors">
-          <Waves className="w-8 h-8 text-emerald-400 mb-3" />
-          <h3 className="text-lg font-semibold mb-1">Create a Stream</h3>
-          <p className="text-sm text-provn-muted">Start streaming tokens per-second to any address on Vara</p>
+        <Link href="/app/streams" className="block">
+          <ShaderCard
+            width={undefined as unknown as number}
+            height={220}
+            color="#10b981"
+            positionY={0.15}
+            scale={4}
+            branchIntensity={1.5}
+            verticalExtent={1.5}
+            horizontalExtent={1.5}
+            blur={4}
+            opacity={0.85}
+            className="!w-full rounded-2xl hover:shadow-emerald-500/10 hover:shadow-xl transition-shadow"
+          >
+            <div className="p-6 flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <Waves className="w-7 h-7 text-emerald-400" />
+                  <h3 className="text-lg font-bold text-white">Create a Stream</h3>
+                </div>
+                <p className="text-sm text-white/60">
+                  Start streaming tokens per-second to any address on Vara
+                </p>
+              </div>
+              <div className="flex items-center gap-4 mt-4">
+                <div className="flex items-center gap-1.5 text-xs text-white/50">
+                  <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Per-second flow</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-white/50">
+                  <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>On-chain escrow</span>
+                </div>
+              </div>
+            </div>
+          </ShaderCard>
         </Link>
-        <Link href="/app/vault" className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 rounded-xl p-6 hover:border-blue-500/40 transition-colors">
-          <Vault className="w-8 h-8 text-blue-400 mb-3" />
-          <h3 className="text-lg font-semibold mb-1">Manage Vault</h3>
-          <p className="text-sm text-provn-muted">Deposit or withdraw tokens from the escrow vault</p>
+
+        <Link href="/app/vault" className="block">
+          <ShaderCard
+            width={undefined as unknown as number}
+            height={220}
+            color="#3b82f6"
+            positionY={0.15}
+            scale={4}
+            branchIntensity={1.2}
+            verticalExtent={1.5}
+            horizontalExtent={1.5}
+            blur={4}
+            opacity={0.85}
+            className="!w-full rounded-2xl hover:shadow-blue-500/10 hover:shadow-xl transition-shadow"
+          >
+            <div className="p-6 flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <Vault className="w-7 h-7 text-blue-400" />
+                  <h3 className="text-lg font-bold text-white">Manage Vault</h3>
+                </div>
+                <p className="text-sm text-white/60">
+                  Deposit or withdraw tokens from the escrow vault
+                </p>
+              </div>
+              <div className="flex items-center gap-4 mt-4">
+                <div className="flex items-center gap-1.5 text-xs text-white/50">
+                  <Layers className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Multi-token</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-white/50">
+                  <Shield className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Non-custodial</span>
+                </div>
+              </div>
+            </div>
+          </ShaderCard>
         </Link>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold mb-3">Protocol Features</h2>
+        <div className="flex gap-4 overflow-x-auto pb-2">
+          <DepthCard
+            image="https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=400&q=80"
+            title="Revenue Splits"
+            description="Automatically distribute incoming tokens across multiple recipients"
+            width={240}
+            height={320}
+            onClick={() => window.location.href = '/app/splits'}
+          />
+          <DepthCard
+            image="https://images.unsplash.com/photo-1642104704074-907c0698cbd9?w=400&q=80"
+            title="Bounty Streams"
+            description="Fund milestone-based tasks with conditional token releases"
+            width={240}
+            height={320}
+            onClick={() => window.location.href = '/app/bounties'}
+          />
+          <DepthCard
+            image="https://images.unsplash.com/photo-1558591710-4b4a1ae0f04d?w=400&q=80"
+            title="Identity Registry"
+            description="On-chain identity for verified participants and reputation"
+            width={240}
+            height={320}
+            onClick={() => window.location.href = '/app/identity'}
+          />
+          <DepthCard
+            image="https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=400&q=80"
+            title="Permissions"
+            description="Granular access control for stream operations and roles"
+            width={240}
+            height={320}
+            onClick={() => window.location.href = '/app/permissions'}
+          />
+        </div>
       </div>
     </div>
   );

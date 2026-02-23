@@ -1,8 +1,3 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Environment variables
@@ -14,21 +9,13 @@ const nextConfig = {
   // Handle ES modules and external packages
   serverExternalPackages: [
     'viem', 'wagmi',
-    '@gear-js/api', '@gear-js/react-hooks', '@gear-js/vara-ui', '@gear-js/wallet-connect',
+    '@gear-js/api', '@gear-js/react-hooks', '@gear-js/vara-ui', '@gear-js/wallet-connect', '@gear-js/ui',
     '@polkadot/api', '@polkadot/extension-dapp', '@polkadot/react-identicon',
     'sails-js',
   ],
 
   // Webpack configuration
   webpack: (config, { isServer }) => {
-    // Force all packages to share a single React instance
-    config.resolve = config.resolve || {};
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      react: path.resolve(__dirname, 'node_modules/react'),
-      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
-    };
-
     // Handle viem and other ESM packages
     config.externals = config.externals || []
     if (isServer) {
