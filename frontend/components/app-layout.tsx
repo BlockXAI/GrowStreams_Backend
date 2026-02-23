@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAccount } from '@gear-js/react-hooks';
+import { useAccount, useApi } from '@gear-js/react-hooks';
+import { Wallet as GearWallet } from '@gear-js/wallet-connect';
 import {
   LayoutDashboard, Waves, Vault, GitFork, Shield,
   Trophy, Fingerprint, Wallet, LogOut, Menu, X,
@@ -27,6 +28,7 @@ function shortenAddress(addr: string) {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { account, logout } = useAccount();
+  const { isApiReady } = useApi();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
@@ -101,9 +103,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex-1" />
-          <div className="flex items-center gap-3 text-xs text-provn-muted">
-            <span className="hidden sm:inline">Vara Testnet</span>
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <div className="flex items-center gap-3">
+            {isApiReady && <GearWallet theme="vara" displayBalance />}
+            <div className="flex items-center gap-2 text-xs text-provn-muted">
+              <span className="hidden sm:inline">Vara Testnet</span>
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            </div>
           </div>
         </header>
 

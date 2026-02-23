@@ -11,10 +11,11 @@
   "dependencies": {
     "@campnetwork/origin": "^0.0.17",
     "@gear-js/api": "0.41.0",
-    "@growstreams/sdk": "file:../sdk",
     "@gear-js/react-hooks": "0.15.0",
-    "@gear-js/vara-ui": "^0.1.1",
+    "@gear-js/ui": "^0.7.0",
+    "@gear-js/vara-ui": "^0.3.1",
     "@gear-js/wallet-connect": "^0.4.1",
+    "@growstreams/sdk": "file:../sdk",
     "@polkadot/api": "15.4.1",
     "@polkadot/extension-dapp": "^0.58.8",
     "@polkadot/react-identicon": "3.12.1",
@@ -48,6 +49,7 @@
     "eslint": "^9.0.0",
     "eslint-config-next": "15.1.0",
     "postcss": "^8.5.0",
+    "sass": "^1.97.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.0"
   }

@@ -1,3 +1,8 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Environment variables
@@ -16,6 +21,14 @@ const nextConfig = {
 
   // Webpack configuration
   webpack: (config, { isServer }) => {
+    // Force all packages to share a single React instance
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      react: path.resolve(__dirname, 'node_modules/react'),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+    };
+
     // Handle viem and other ESM packages
     config.externals = config.externals || []
     if (isServer) {
