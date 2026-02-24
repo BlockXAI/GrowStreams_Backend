@@ -1,15 +1,15 @@
 {
   "stream-core": {
-    "programId": "0xf8e1e0ab81434b94357c1203b681206931c2e30ef350c0aac8fcfac45c2ea249",
-    "codeId": "0x87ab0f169352b0132d478b586de048033cf7bb048fc83aea5f8cac22756b9087",
-    "deployedAt": "2026-02-22T21:31:16.050Z",
+    "programId": "0x2e7c2064344449504c9c638261bab78238ae50b8a47faac5beae2d1915d70a56",
+    "codeId": "0xcec7f2c5f87594cf549603e29f36966402c77820c53c1ae84f6ee481b86045f4",
+    "deployedAt": "2026-02-24T15:19:42.319Z",
     "network": "vara-testnet",
     "node": "wss://testnet.vara.network"
   },
   "token-vault": {
-    "programId": "0x25e433af499bd4428c8bf9b190722e8f9b66339d08df3d7b84bc31565d997d3e",
-    "codeId": "0x61c0a68a015db78ad6f3e170a52fc66e5d6b2a6c1953914fbb86262be026d2b6",
-    "deployedAt": "2026-02-22T21:31:28.057Z",
+    "programId": "0xa6b64dd5c89c5c0b12c15a54de23995e91fb23f61de35e50393a0d40b975ac90",
+    "codeId": "0x70107c7bec376973c4df086d0d880b5622bf8e13e5a51cd054cb33b584267871",
+    "deployedAt": "2026-02-24T09:30:57.190Z",
     "network": "vara-testnet",
     "node": "wss://testnet.vara.network"
   },

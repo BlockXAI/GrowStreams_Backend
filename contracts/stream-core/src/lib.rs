@@ -5,6 +5,7 @@ use sails_rs::{
     gstd::{exec, msg},
     prelude::*,
 };
+use gstd::msg as gstd_msg;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -218,9 +219,10 @@ impl StreamService {
             "AllocateToStream",
             (sender, token, initial_deposit, id)
         );
-        msg::send(
+        gstd_msg::send_bytes_with_gas(
             state.config.token_vault,
             payload,
+            5_000_000_000,
             0
         ).expect("Vault allocate failed");
 
@@ -335,9 +337,10 @@ impl StreamService {
             "TransferToReceiver",
             (stream.token, stream.receiver, withdrawable, stream_id)
         );
-        msg::send(
+        gstd_msg::send_bytes_with_gas(
             state.config.token_vault,
             payload,
+            5_000_000_000,
             0
         ).expect("Vault transfer failed");
 

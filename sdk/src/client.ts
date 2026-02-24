@@ -124,6 +124,12 @@ export class GrowStreams {
     withdraw: (params: { token: string; amount: string; mode?: 'payload' }) =>
       this.post<TxResult | PayloadResult>('/api/vault/withdraw', params as unknown as Record<string, unknown>),
 
+    depositNative: (params: { amount: string; mode?: 'payload' }) =>
+      this.post<TxResult | PayloadResult>('/api/vault/deposit-native', params as unknown as Record<string, unknown>),
+
+    withdrawNative: (params: { amount: string; mode?: 'payload' }) =>
+      this.post<TxResult | PayloadResult>('/api/vault/withdraw-native', params as unknown as Record<string, unknown>),
+
     pause: (mode?: 'payload') =>
       this.post<TxResult | PayloadResult>('/api/vault/pause', mode ? { mode } : undefined),
 
