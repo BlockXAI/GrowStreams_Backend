@@ -9,6 +9,19 @@ import { Trophy, Plus, RefreshCw, CheckCircle, Hand } from 'lucide-react';
 
 const ZERO_TOKEN = '0x0000000000000000000000000000000000000000000000000000000000000000';
 
+function formatVara(raw: string | number): string {
+  const n = Number(raw);
+  if (isNaN(n) || n === 0) return '0';
+  if (n >= 1e12) return (n / 1e12).toFixed(4) + ' VARA';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M units';
+  return n.toLocaleString() + ' units';
+}
+
+function truncAddr(addr: string): string {
+  if (!addr || addr.length < 16) return addr || '—';
+  return addr.slice(0, 8) + '...' + addr.slice(-6);
+}
+
 function statusBadge(s: string) {
   const map: Record<string, string> = {
     Open: 'text-emerald-400 bg-emerald-500/10',
@@ -214,19 +227,19 @@ export default function BountiesPage() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                 <div>
                   <span className="text-provn-muted">Creator</span>
-                  <p className="font-mono truncate mt-0.5">{b.creator}</p>
+                  <p className="font-mono mt-0.5" title={b.creator}>{truncAddr(b.creator)}</p>
                 </div>
                 <div>
                   <span className="text-provn-muted">Max Flow Rate</span>
-                  <p className="font-mono mt-0.5">{b.max_flow_rate}/s</p>
+                  <p className="font-mono mt-0.5">{formatVara(b.max_flow_rate)}/s</p>
                 </div>
                 <div>
                   <span className="text-provn-muted">Min Score</span>
-                  <p className="font-mono mt-0.5">{b.min_score}</p>
+                  <p className="font-mono mt-0.5">{b.min_score}/100</p>
                 </div>
                 <div>
                   <span className="text-provn-muted">Budget</span>
-                  <p className="font-mono mt-0.5">{b.total_budget}</p>
+                  <p className="font-mono mt-0.5">{formatVara(b.total_budget)}</p>
                 </div>
               </div>
             </div>

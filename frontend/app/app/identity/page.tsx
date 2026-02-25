@@ -123,21 +123,28 @@ export default function IdentityPage() {
             <h2 className="font-semibold flex items-center gap-2">
               <Github className="w-5 h-5" /> Bind GitHub Identity
             </h2>
+            {account?.decodedAddress && (
+              <div className="bg-provn-bg/50 rounded-lg px-3 py-2 text-xs">
+                <span className="text-provn-muted">Binding to wallet: </span>
+                <span className="font-mono text-cyan-400">{account.decodedAddress.slice(0, 10)}...{account.decodedAddress.slice(-6)}</span>
+              </div>
+            )}
             <div>
               <label className="block text-xs text-provn-muted mb-1">GitHub Username</label>
               <input
                 value={githubUsername} onChange={(e) => setGithubUsername(e.target.value)} required
                 className="w-full px-3 py-2 bg-provn-bg border border-provn-border rounded-lg text-sm focus:border-cyan-500/50 focus:outline-none"
-                placeholder="octocat"
+                placeholder="e.g. octocat"
               />
             </div>
             <div>
-              <label className="block text-xs text-provn-muted mb-1">Proof Hash (hex string)</label>
+              <label className="block text-xs text-provn-muted mb-1">Proof Hash (hex)</label>
               <input
                 value={proofHash} onChange={(e) => setProofHash(e.target.value)} required
                 className="w-full px-3 py-2 bg-provn-bg border border-provn-border rounded-lg text-sm font-mono focus:border-cyan-500/50 focus:outline-none"
-                placeholder="abcdef1234..."
+                placeholder="e.g. a1b2c3d4e5f6..."
               />
+              <p className="text-xs text-provn-muted mt-1">Hex-encoded proof of GitHub ownership (from Reclaim or manual verification)</p>
             </div>
             <div>
               <label className="block text-xs text-provn-muted mb-1">Initial Score (0-100)</label>
@@ -146,6 +153,7 @@ export default function IdentityPage() {
                 className="w-full px-3 py-2 bg-provn-bg border border-provn-border rounded-lg text-sm focus:border-cyan-500/50 focus:outline-none"
                 placeholder="50"
               />
+              <p className="text-xs text-provn-muted mt-1">AI-assessed quality score for this identity</p>
             </div>
             <button
               type="submit" disabled={signing}

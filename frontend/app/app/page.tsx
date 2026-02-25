@@ -2,10 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { useAccount } from '@gear-js/react-hooks';
-import { api, type HealthData, type StreamConfig } from '@/lib/growstreams-api';
-import { Waves, Vault, GitFork, Trophy, Activity, TrendingUp, Zap, Shield, Layers } from 'lucide-react';
+import { api, type HealthData, type StreamConfig, type StreamData } from '@/lib/growstreams-api';
+import { Waves, Vault, GitFork, Trophy, Activity, TrendingUp, TrendingDown, Zap, Shield, Layers } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+
+function formatVara(raw: string | number): string {
+  const n = Number(raw);
+  if (isNaN(n) || n === 0) return '0';
+  if (n >= 1e12) return (n / 1e12).toFixed(4) + ' VARA';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M units';
+  return n.toLocaleString() + ' units';
+}
 
 const ShaderCard = dynamic(() => import('@/components/ui/shader-card'), { ssr: false });
 const DepthCard = dynamic(() => import('@/components/ui/depth-card'), { ssr: false });
@@ -34,6 +42,8 @@ export default function DashboardPage() {
   const [stats, setStats] = useState({ streams: '—', active: '—', groups: '—', bounties: '—' });
   const [myStreams, setMyStreams] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [outflowRate, setOutflowRate] = useState(0);
+  const [inflowRate, setInflowRate] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -58,8 +68,30 @@ export default function DashboardPage() {
         if (account?.decodedAddress) {
           const hex = account.decodedAddress;
           try {
-            const s = await api.streams.bySender(hex);
-            setMyStreams(s.streamIds || []);
+            const [sent, recv] = await Promise.all([
+              api.streams.bySender(hex).catch(() => ({ streamIds: [] })),
+              api.streams.byReceiver(hex).catch(() => ({ streamIds: [] })),
+            ]);
+            const sentIds = sent.streamIds || [];
+            const recvIds = recv.streamIds || [];
+            setMyStreams(sentIds);
+
+            const allIds = [...new Set([...sentIds, ...recvIds])];
+            if (allIds.length > 0) {
+              const details = await Promise.all(
+                allIds.slice(0, 30).map(id => api.streams.get(Number(id)).catch(() => null))
+              );
+              const active = details.filter(Boolean) as StreamData[];
+              const hexLower = hex.toLowerCase();
+              setOutflowRate(
+                active.filter(s => s.status === 'Active' && s.sender?.toLowerCase() === hexLower)
+                  .reduce((sum, s) => sum + Number(s.flow_rate), 0)
+              );
+              setInflowRate(
+                active.filter(s => s.status === 'Active' && s.receiver?.toLowerCase() === hexLower)
+                  .reduce((sum, s) => sum + Number(s.flow_rate), 0)
+              );
+            }
           } catch { /* no streams */ }
         }
       } catch (err) {
@@ -104,6 +136,34 @@ export default function DashboardPage() {
           <div>
             <span className="text-provn-muted">Balance:</span>{' '}
             <span className="text-provn-text">{health.balance}</span>
+          </div>
+        </div>
+      )}
+
+      {(outflowRate > 0 || inflowRate > 0) && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-provn-surface border border-provn-border rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingDown className="w-4 h-4 text-red-400" />
+              <span className="text-xs text-provn-muted">Your Outflow</span>
+            </div>
+            <p className="text-lg font-bold text-red-400 font-mono">-{formatVara(outflowRate)}/s</p>
+          </div>
+          <div className="bg-provn-surface border border-provn-border rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs text-provn-muted">Your Inflow</span>
+            </div>
+            <p className="text-lg font-bold text-emerald-400 font-mono">+{formatVara(inflowRate)}/s</p>
+          </div>
+          <div className="bg-provn-surface border border-provn-border rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Zap className="w-4 h-4 text-blue-400" />
+              <span className="text-xs text-provn-muted">Net Flow</span>
+            </div>
+            <p className={`text-lg font-bold font-mono ${(inflowRate - outflowRate) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {(inflowRate - outflowRate) >= 0 ? '+' : ''}{formatVara(inflowRate - outflowRate)}/s
+            </p>
           </div>
         </div>
       )}

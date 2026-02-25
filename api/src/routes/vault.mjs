@@ -99,6 +99,30 @@ router.post('/transfer', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+router.post('/deposit-native', async (req, res, next) => {
+  try {
+    const { amount, mode } = req.body;
+    if (!amount) return res.status(400).json({ error: 'Missing: amount' });
+    if (mode === 'payload') {
+      return res.json({ payload: encodePayload(C, 'DepositNative'), value: amount });
+    }
+    const { result, blockHash } = await command(C, 'DepositNative');
+    res.status(201).json({ amount, blockHash });
+  } catch (err) { next(err); }
+});
+
+router.post('/withdraw-native', async (req, res, next) => {
+  try {
+    const { amount, mode } = req.body;
+    if (!amount) return res.status(400).json({ error: 'Missing: amount' });
+    if (mode === 'payload') {
+      return res.json({ payload: encodePayload(C, 'WithdrawNative', BigInt(amount)) });
+    }
+    const { result, blockHash } = await command(C, 'WithdrawNative', BigInt(amount));
+    res.json({ amount, blockHash });
+  } catch (err) { next(err); }
+});
+
 router.post('/pause', async (req, res, next) => {
   try {
     if (req.body?.mode === 'payload') {

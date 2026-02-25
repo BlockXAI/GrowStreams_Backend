@@ -55,9 +55,10 @@ export interface StreamData {
   token: string;
   flow_rate: string;
   start_time: number;
-  last_claimed: number;
-  deposit: string;
-  claimed: string;
+  last_update: number;
+  deposited: string;
+  withdrawn: string;
+  streamed: string;
   status: string;
 }
 
@@ -101,6 +102,7 @@ export interface TxResult {
 
 export interface PayloadResult {
   payload: string;
+  value?: string;
 }
 
 export const api = {
@@ -130,6 +132,8 @@ export const api = {
       post<TxResult | PayloadResult>(`/api/streams/${id}/withdraw`, mode ? { mode } : undefined),
     stop: (id: number, mode?: string) =>
       post<TxResult | PayloadResult>(`/api/streams/${id}/stop`, mode ? { mode } : undefined),
+    liquidate: (id: number, mode?: string) =>
+      post<TxResult | PayloadResult>(`/api/streams/${id}/liquidate`, mode ? { mode } : undefined),
   },
 
   vault: {
@@ -142,6 +146,10 @@ export const api = {
       post<TxResult | PayloadResult>('/api/vault/deposit', params as unknown as Record<string, unknown>),
     withdraw: (params: { token: string; amount: string; mode?: string }) =>
       post<TxResult | PayloadResult>('/api/vault/withdraw', params as unknown as Record<string, unknown>),
+    depositNative: (params: { amount: string; mode?: string }) =>
+      post<TxResult | PayloadResult>('/api/vault/deposit-native', params as unknown as Record<string, unknown>),
+    withdrawNative: (params: { amount: string; mode?: string }) =>
+      post<TxResult | PayloadResult>('/api/vault/withdraw-native', params as unknown as Record<string, unknown>),
     pause: (mode?: string) =>
       post<TxResult | PayloadResult>('/api/vault/pause', mode ? { mode } : undefined),
     unpause: (mode?: string) =>

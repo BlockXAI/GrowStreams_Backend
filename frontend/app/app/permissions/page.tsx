@@ -97,12 +97,13 @@ export default function PermissionsPage() {
         <form onSubmit={handleGrant} className="bg-provn-surface border border-provn-border rounded-xl p-5 space-y-4">
           <h2 className="font-semibold">Grant Permission</h2>
           <div>
-            <label className="block text-xs text-provn-muted mb-1">Grantee Address (0x...)</label>
+            <label className="block text-xs text-provn-muted mb-1">Grantee Address</label>
             <input
               value={grantee} onChange={(e) => setGrantee(e.target.value)} required
               className="w-full px-3 py-2 bg-provn-bg border border-provn-border rounded-lg text-sm font-mono focus:border-indigo-500/50 focus:outline-none"
-              placeholder="0x0000...0001"
+              placeholder="kGk... or 0x..."
             />
+            <p className="text-xs text-provn-muted mt-1">Accepts Vara SS58 or hex address</p>
           </div>
           <div>
             <label className="block text-xs text-provn-muted mb-1">Scope</label>

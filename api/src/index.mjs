@@ -63,6 +63,8 @@ app.get('/', (req, res) => {
         allocation: 'GET /api/vault/allocation/:streamId',
         deposit: 'POST /api/vault/deposit { token, amount, mode? }',
         withdraw: 'POST /api/vault/withdraw { token, amount, mode? }',
+        depositNative: 'POST /api/vault/deposit-native { amount, mode? }',
+        withdrawNative: 'POST /api/vault/withdraw-native { amount, mode? }',
         pause: 'POST /api/vault/pause',
         unpause: 'POST /api/vault/unpause',
       },

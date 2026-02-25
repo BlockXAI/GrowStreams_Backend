@@ -9,6 +9,11 @@ import { GitFork, Plus, Trash2, Send, RefreshCw } from 'lucide-react';
 
 const ZERO_TOKEN = '0x0000000000000000000000000000000000000000000000000000000000000000';
 
+function truncAddr(addr: string): string {
+  if (!addr || addr.length < 16) return addr || '—';
+  return addr.slice(0, 8) + '...' + addr.slice(-6);
+}
+
 export default function SplitsPage() {
   const { account } = useAccount();
   const { createGroup, distribute, loading: signing } = useSplitsActions();
@@ -99,10 +104,10 @@ export default function SplitsPage() {
           {recipients.map((r, i) => (
             <div key={i} className="flex gap-2 items-end">
               <div className="flex-1">
-                <label className="block text-xs text-provn-muted mb-1">Address</label>
+                <label className="block text-xs text-provn-muted mb-1">Address (SS58 or hex)</label>
                 <input value={r.address} onChange={e => {
                   const up = [...recipients]; up[i].address = e.target.value; setRecipients(up);
-                }} required className="w-full px-3 py-2 bg-provn-bg border border-provn-border rounded-lg text-sm font-mono focus:border-purple-500/50 focus:outline-none" placeholder="0x..." />
+                }} required className="w-full px-3 py-2 bg-provn-bg border border-provn-border rounded-lg text-sm font-mono focus:border-purple-500/50 focus:outline-none" placeholder="kGk... or 0x..." />
               </div>
               <div className="w-24">
                 <label className="block text-xs text-provn-muted mb-1">Weight</label>
@@ -143,7 +148,7 @@ export default function SplitsPage() {
               <div className="space-y-1 mb-4">
                 {g.recipients.map((r, i) => (
                   <div key={i} className="flex items-center justify-between text-xs bg-provn-bg/50 rounded-lg px-3 py-2">
-                    <span className="font-mono truncate flex-1">{r.address}</span>
+                    <span className="font-mono truncate flex-1" title={r.address}>{truncAddr(r.address)}</span>
                     <span className="ml-2 text-purple-400 font-medium">{r.weight} ({Math.round(r.weight / g.total_weight * 100)}%)</span>
                   </div>
                 ))}

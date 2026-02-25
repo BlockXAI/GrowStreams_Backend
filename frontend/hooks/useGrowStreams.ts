@@ -2,12 +2,13 @@
 
 import { useState, useCallback } from 'react';
 import { useApi, useAccount } from '@gear-js/react-hooks';
-import { web3FromSource } from '@polkadot/extension-dapp';
+import { web3Enable, web3FromSource, web3FromAddress } from '@polkadot/extension-dapp';
+import { decodeAddress } from '@gear-js/api';
 import { api as gsApi, type PayloadResult, type TxResult } from '@/lib/growstreams-api';
 
 const PROGRAM_IDS: Record<string, string> = {
-  streamCore: '0xf8e1e0ab81434b94357c1203b681206931c2e30ef350c0aac8fcfac45c2ea249',
-  tokenVault: '0x25e433af499bd4428c8bf9b190722e8f9b66339d08df3d7b84bc31565d997d3e',
+  streamCore: '0x2e7c2064344449504c9c638261bab78238ae50b8a47faac5beae2d1915d70a56',
+  tokenVault: '0xa6b64dd5c89c5c0b12c15a54de23995e91fb23f61de35e50393a0d40b975ac90',
   splitsRouter: '0xe4fe59166d824a0f710488b02e039f3fe94980756e3571fc93ba083b5b88b894',
   permissionManager: '0x6cce66023765a57cbc6adf5dfe7df66ee636af56ab7d92a8f614bd8c229f88cb',
   bountyAdapter: '0xd5377611a285d3efcbe9369361647d13f3a9c60ed70d648eaa21c08c72268f81',
@@ -23,23 +24,20 @@ function isPayload(r: TxResult | PayloadResult): r is PayloadResult {
   return 'payload' in r;
 }
 
-function decodePayload(hex: string): string {
-  if (!hex.startsWith('0x')) return hex;
-  try {
-    const bytes = new Uint8Array(
-      (hex.slice(2).match(/.{2}/g) || []).map((b) => parseInt(b, 16))
-    );
-    const text = new TextDecoder().decode(bytes);
-    if (text.startsWith('0x') && /^0x[0-9a-fA-F]+$/.test(text)) {
-      return text;
-    }
-  } catch { /* not double-encoded, use as-is */ }
-  return hex;
-}
-
 function getPayload(res: TxResult | PayloadResult): string {
   if (!isPayload(res)) throw new Error('Expected payload from API');
-  return decodePayload(res.payload);
+  const p = res.payload;
+  if (typeof p === 'string' && p.startsWith('0x')) return p;
+  return p;
+}
+
+function toHex(address: string): string {
+  if (address.startsWith('0x') && address.length === 66) return address;
+  try {
+    return decodeAddress(address);
+  } catch {
+    return address;
+  }
 }
 
 export function useGearSign() {
@@ -49,42 +47,70 @@ export function useGearSign() {
   const [error, setError] = useState<string | null>(null);
 
   const signAndSend = useCallback(
-    async (contract: keyof typeof PROGRAM_IDS, payloadHex: string): Promise<SendResult> => {
-      if (!api || !account) throw new Error('Wallet not connected');
+    async (contract: keyof typeof PROGRAM_IDS, payloadHex: string, value = 0): Promise<SendResult> => {
+      if (!api) throw new Error('Gear API not connected. Please wait for the network connection.');
+      if (!account) throw new Error('Wallet not connected. Please connect your Vara wallet first.');
 
       setLoading(true);
       setError(null);
 
       try {
         const programId = PROGRAM_IDS[contract] as `0x${string}`;
-        const injector = await web3FromSource(account.meta.source);
+
+        await web3Enable('GrowStreams');
+
+        let injector;
+        try {
+          injector = await web3FromSource(account.meta.source);
+        } catch {
+          injector = await web3FromAddress(account.address);
+        }
+        if (!injector?.signer) {
+          throw new Error('Could not access wallet signer. Please reconnect your wallet.');
+        }
 
         const gas = await api.program.calculateGas.handle(
           account.decodedAddress as `0x${string}`,
           programId,
           payloadHex as `0x${string}`,
-          0,
+          value,
           true,
         );
+
+        const minGas = BigInt(gas.min_limit.toString());
+        const gasLimit = (minGas * BigInt(6) / BigInt(5)).toString();
 
         return new Promise((resolve, reject) => {
           const tx = api.message.send({
             destination: programId,
             payload: payloadHex as `0x${string}`,
-            gasLimit: gas.min_limit,
-            value: 0,
+            gasLimit,
+            value,
           });
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          tx.signAndSend(account.address, { signer: injector.signer as any }, ({ status }) => {
+          tx.signAndSend(account.address, { signer: injector.signer as any }, ({ status, events }) => {
             if (status.isInBlock) {
-              resolve({ blockHash: status.asInBlock.toHex(), success: true });
+              const failed = events?.some((e) =>
+                api.events.system.ExtrinsicFailed.is(e.event)
+              );
+              if (failed) {
+                reject(new Error('Transaction failed on-chain. Check contract parameters.'));
+              } else {
+                resolve({ blockHash: status.asInBlock.toHex(), success: true });
+              }
             } else if (status.isFinalized) {
               resolve({ blockHash: status.asFinalized.toHex(), success: true });
             } else if (status.isInvalid) {
-              reject(new Error('Transaction invalid'));
+              reject(new Error('Transaction invalid — it may have been dropped by the network.'));
             }
-          }).catch(reject);
+          }).catch((err) => {
+            if (err?.message?.includes('Cancelled') || err?.message?.includes('Rejected')) {
+              reject(new Error('Transaction was cancelled by the user.'));
+            } else {
+              reject(err);
+            }
+          });
         });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Transaction failed';
@@ -104,7 +130,7 @@ export function useStreamActions() {
   const { signAndSend, loading, error, account } = useGearSign();
 
   const createStream = async (receiver: string, token: string, flowRate: string, initialDeposit: string) => {
-    const res = await gsApi.streams.create({ receiver, token, flowRate, initialDeposit, mode: 'payload' });
+    const res = await gsApi.streams.create({ receiver: toHex(receiver), token: toHex(token), flowRate, initialDeposit, mode: 'payload' });
     return signAndSend('streamCore', getPayload(res));
   };
 
@@ -138,9 +164,14 @@ export function useStreamActions() {
     return signAndSend('streamCore', getPayload(res));
   };
 
+  const liquidateStream = async (id: number) => {
+    const res = await gsApi.streams.liquidate(id, 'payload');
+    return signAndSend('streamCore', getPayload(res));
+  };
+
   return {
     createStream, pauseStream, resumeStream, depositToStream,
-    withdrawFromStream, stopStream, updateStream,
+    withdrawFromStream, stopStream, updateStream, liquidateStream,
     loading, error, account,
   };
 }
@@ -158,14 +189,25 @@ export function useVaultActions() {
     return signAndSend('tokenVault', getPayload(res));
   };
 
-  return { depositTokens, withdrawTokens, loading, error };
+  const depositNative = async (amount: string) => {
+    const res = await gsApi.vault.depositNative({ amount, mode: 'payload' });
+    return signAndSend('tokenVault', getPayload(res), Number(amount));
+  };
+
+  const withdrawNative = async (amount: string) => {
+    const res = await gsApi.vault.withdrawNative({ amount, mode: 'payload' });
+    return signAndSend('tokenVault', getPayload(res));
+  };
+
+  return { depositTokens, withdrawTokens, depositNative, withdrawNative, loading, error };
 }
 
 export function useSplitsActions() {
   const { signAndSend, loading, error } = useGearSign();
 
   const createGroup = async (recipients: { address: string; weight: number }[]) => {
-    const res = await gsApi.splits.create({ recipients, mode: 'payload' });
+    const mapped = recipients.map(r => ({ ...r, address: toHex(r.address) }));
+    const res = await gsApi.splits.create({ recipients: mapped, mode: 'payload' });
     return signAndSend('splitsRouter', getPayload(res));
   };
 
@@ -206,12 +248,12 @@ export function usePermissionActions() {
   const { signAndSend, loading, error } = useGearSign();
 
   const grantPermission = async (grantee: string, scope: string) => {
-    const res = await gsApi.permissions.grant({ grantee, scope, mode: 'payload' });
+    const res = await gsApi.permissions.grant({ grantee: toHex(grantee), scope, mode: 'payload' });
     return signAndSend('permissionManager', getPayload(res));
   };
 
   const revokePermission = async (grantee: string, scope: string) => {
-    const res = await gsApi.permissions.revoke({ grantee, scope, mode: 'payload' });
+    const res = await gsApi.permissions.revoke({ grantee: toHex(grantee), scope, mode: 'payload' });
     return signAndSend('permissionManager', getPayload(res));
   };
 
@@ -222,7 +264,7 @@ export function useIdentityActions() {
   const { signAndSend, loading, error } = useGearSign();
 
   const bindIdentity = async (actorId: string, githubUsername: string, proofHash: string, score: number) => {
-    const res = await gsApi.identity.bind({ actorId, githubUsername, proofHash, score, mode: 'payload' });
+    const res = await gsApi.identity.bind({ actorId: toHex(actorId), githubUsername, proofHash, score, mode: 'payload' });
     return signAndSend('identityRegistry', getPayload(res));
   };
 
