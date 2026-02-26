@@ -9,10 +9,24 @@ function toBigIntStr(v) {
   return typeof v === 'bigint' ? v.toString() : String(v);
 }
 
+function serializeDeep(obj) {
+  if (obj == null) return obj;
+  if (typeof obj === 'bigint') return obj.toString();
+  if (Array.isArray(obj)) return obj.map(serializeDeep);
+  if (typeof obj === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      out[k] = serializeDeep(v);
+    }
+    return out;
+  }
+  return obj;
+}
+
 router.get('/config', async (req, res, next) => {
   try {
     const result = await query(C, 'GetConfig');
-    res.json(result);
+    res.json(serializeDeep(result));
   } catch (err) { next(err); }
 });
 
@@ -49,7 +63,7 @@ router.get('/:id', async (req, res, next) => {
     const id = BigInt(req.params.id);
     const result = await query(C, 'GetStream', id);
     if (!result) return res.status(404).json({ error: 'Stream not found' });
-    res.json(result);
+    res.json(serializeDeep(result));
   } catch (err) { next(err); }
 });
 

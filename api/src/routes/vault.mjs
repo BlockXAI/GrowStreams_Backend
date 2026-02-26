@@ -4,10 +4,40 @@ import { query, command, encodePayload } from '../sails-client.mjs';
 const router = Router();
 const C = 'tokenVault';
 
+function toBigIntStr(v) {
+  if (v == null) return '0';
+  return typeof v === 'bigint' ? v.toString() : String(v);
+}
+
+function serializeDeep(obj) {
+  if (obj == null) return obj;
+  if (typeof obj === 'bigint') return obj.toString();
+  if (Array.isArray(obj)) return obj.map(serializeDeep);
+  if (typeof obj === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) {
+      out[k] = serializeDeep(v);
+    }
+    return out;
+  }
+  return obj;
+}
+
+function serializeVaultBalance(raw) {
+  if (!raw) return { owner: '', token: '', total_deposited: '0', total_allocated: '0', available: '0' };
+  return {
+    owner: raw.owner || raw.Owner || '',
+    token: raw.token || raw.Token || '',
+    total_deposited: toBigIntStr(raw.total_deposited ?? raw.totalDeposited ?? raw.TotalDeposited ?? 0),
+    total_allocated: toBigIntStr(raw.total_allocated ?? raw.totalAllocated ?? raw.TotalAllocated ?? 0),
+    available: toBigIntStr(raw.available ?? raw.Available ?? 0),
+  };
+}
+
 router.get('/config', async (req, res, next) => {
   try {
     const result = await query(C, 'GetConfig');
-    res.json(result);
+    res.json(serializeDeep(result));
   } catch (err) { next(err); }
 });
 
@@ -21,7 +51,7 @@ router.get('/paused', async (req, res, next) => {
 router.get('/balance/:owner/:token', async (req, res, next) => {
   try {
     const result = await query(C, 'GetBalance', req.params.owner, req.params.token);
-    res.json(result);
+    res.json(serializeVaultBalance(result));
   } catch (err) { next(err); }
 });
 
@@ -29,7 +59,7 @@ router.get('/allocation/:streamId', async (req, res, next) => {
   try {
     const id = BigInt(req.params.streamId);
     const result = await query(C, 'GetStreamAllocation', id);
-    res.json({ streamId: Number(id), allocated: String(result) });
+    res.json({ streamId: Number(id), allocated: toBigIntStr(result) });
   } catch (err) { next(err); }
 });
 

@@ -6,7 +6,7 @@ import { useAccount, useApi } from '@gear-js/react-hooks';
 import { Wallet as GearWallet } from '@gear-js/wallet-connect';
 import {
   LayoutDashboard, Waves, Vault, GitFork, Shield,
-  Trophy, Fingerprint, Wallet, LogOut, Menu, X,
+  Trophy, Fingerprint, Wallet, LogOut, Menu, X, Coins,
 } from 'lucide-react';
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -16,6 +16,7 @@ const PixelBlast = dynamic(() => import('@/components/ui/PixelBlast'), { ssr: fa
 const navItems = [
   { href: '/app', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/app/streams', label: 'Streams', icon: Waves },
+  { href: '/app/grow', label: 'GROW Token', icon: Coins },
   { href: '/app/vault', label: 'Vault', icon: Vault },
   { href: '/app/splits', label: 'Splits', icon: GitFork },
   { href: '/app/bounties', label: 'Bounties', icon: Trophy },

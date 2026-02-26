@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, FormEvent } from 'react';
 import { useAccount } from '@gear-js/react-hooks';
+import Link from 'next/link';
 import { api, type StreamData, type StreamConfig } from '@/lib/growstreams-api';
 import { useStreamActions } from '@/hooks/useGrowStreams';
 import { toast } from 'sonner';
@@ -11,12 +12,27 @@ import {
 } from 'lucide-react';
 
 const ZERO_TOKEN = '0x0000000000000000000000000000000000000000000000000000000000000000';
+const GROW_TOKEN = '0x05a2a482f1a1a7ebf74643f3cc2099597dac81ff92535cbd647948febee8fe36';
 const MIN_BUFFER_SECONDS = 3600;
+const ONE_GROW = 1_000_000_000_000;
 
-function formatVara(raw: string | number): string {
+function toBaseUnits(growAmount: string): string {
+  const num = parseFloat(growAmount);
+  if (isNaN(num) || num <= 0) return '0';
+  return BigInt(Math.round(num * ONE_GROW)).toString();
+}
+
+function toGrowNum(raw: string | number): number {
+  const n = Number(raw);
+  if (isNaN(n)) return 0;
+  return n / ONE_GROW;
+}
+
+function formatTokenAmount(raw: string | number, token?: string): string {
   const n = Number(raw);
   if (isNaN(n) || n === 0) return '0';
-  if (n >= 1e12) return (n / 1e12).toFixed(4) + ' VARA';
+  const symbol = token === ZERO_TOKEN ? 'VARA' : 'GROW';
+  if (n >= 1e12) return (n / 1e12).toFixed(4) + ' ' + symbol;
   if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M units';
   return n.toLocaleString() + ' units';
 }
@@ -159,7 +175,7 @@ function StreamCard({
           </div>
           <p className="text-xl font-bold text-emerald-400 font-mono tabular-nums">
             {formatVaraPrecise(rt.totalStreamed)}
-            {rt.totalStreamed >= 1e12 && <span className="text-sm ml-1 text-emerald-400/60">VARA</span>}
+            {rt.totalStreamed >= 1e12 && <span className="text-sm ml-1 text-emerald-400/60">{s.token === ZERO_TOKEN ? 'VARA' : 'GROW'}</span>}
           </p>
           <div className="mt-2 h-1.5 bg-provn-border/50 rounded-full overflow-hidden">
             <div
@@ -183,7 +199,7 @@ function StreamCard({
         </div>
         <div>
           <span className="text-provn-muted flex items-center gap-1"><Zap className="w-3 h-3" /> Flow Rate</span>
-          <p className="font-mono mt-0.5">{formatVara(s.flow_rate)}/s</p>
+          <p className="font-mono mt-0.5">{formatTokenAmount(s.flow_rate, s.token)}/s</p>
         </div>
         <div>
           <span className="text-provn-muted flex items-center gap-1"><Clock className="w-3 h-3" /> Time Left</span>
@@ -196,17 +212,17 @@ function StreamCard({
       <div className="grid grid-cols-3 gap-3 mt-3 text-xs">
         <div className="bg-provn-bg/50 rounded-lg px-3 py-2">
           <span className="text-provn-muted">Deposited</span>
-          <p className="font-mono mt-0.5 font-medium">{formatVara(s.deposited)}</p>
+          <p className="font-mono mt-0.5 font-medium">{formatTokenAmount(s.deposited, s.token)}</p>
         </div>
         <div className="bg-provn-bg/50 rounded-lg px-3 py-2">
           <span className="text-provn-muted">Remaining</span>
           <p className={`font-mono mt-0.5 font-medium ${rt.isCritical ? 'text-red-400' : ''}`}>
-            {formatVara(rt.remaining)}
+            {formatTokenAmount(rt.remaining, s.token)}
           </p>
         </div>
         <div className="bg-provn-bg/50 rounded-lg px-3 py-2">
           <span className="text-provn-muted">Withdrawn</span>
-          <p className="font-mono mt-0.5 font-medium">{formatVara(s.withdrawn)}</p>
+          <p className="font-mono mt-0.5 font-medium">{formatTokenAmount(s.withdrawn, s.token)}</p>
         </div>
       </div>
 
@@ -242,6 +258,7 @@ export default function StreamsPage() {
   const [flowRate, setFlowRate] = useState('');
   const [deposit, setDeposit] = useState('');
   const [depositAmounts, setDepositAmounts] = useState<Record<number, string>>({});
+  const [useGrow, setUseGrow] = useState(true);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -286,7 +303,13 @@ export default function StreamsPage() {
     e.preventDefault();
     try {
       setBusy(-1);
-      await actions.createStream(receiver, ZERO_TOKEN, flowRate, deposit);
+      const baseFlowRate = useGrow ? toBaseUnits(flowRate) : flowRate;
+      const baseDeposit = useGrow ? toBaseUnits(deposit) : deposit;
+      if (baseFlowRate === '0' || baseDeposit === '0') {
+        toast.error('Enter valid flow rate and deposit amounts');
+        return;
+      }
+      await actions.createStream(receiver, useGrow ? GROW_TOKEN : ZERO_TOKEN, baseFlowRate, baseDeposit);
       toast.success('Stream created!');
       setShowCreate(false);
       setReceiver(''); setFlowRate(''); setDeposit('');
@@ -325,7 +348,8 @@ export default function StreamsPage() {
   };
 
   const estDuration = flowRate && deposit
-    ? Number(deposit) / Number(flowRate) : 0;
+    ? (useGrow ? parseFloat(deposit) / parseFloat(flowRate) : Number(deposit) / Number(flowRate)) : 0;
+  const estFlowRatePerDay = useGrow && flowRate ? parseFloat(flowRate) * 86400 : 0;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -358,14 +382,14 @@ export default function StreamsPage() {
               <TrendingDown className="w-4 h-4 text-red-400" />
               <span className="text-xs text-provn-muted">Outflow</span>
             </div>
-            <p className="text-lg font-bold text-red-400 font-mono">-{formatVara(outflowRate)}/s</p>
+            <p className="text-lg font-bold text-red-400 font-mono">-{formatTokenAmount(outflowRate)}/s</p>
           </div>
           <div className="bg-provn-surface border border-provn-border rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp className="w-4 h-4 text-emerald-400" />
               <span className="text-xs text-provn-muted">Inflow</span>
             </div>
-            <p className="text-lg font-bold text-emerald-400 font-mono">+{formatVara(inflowRate)}/s</p>
+            <p className="text-lg font-bold text-emerald-400 font-mono">+{formatTokenAmount(inflowRate)}/s</p>
           </div>
           <div className="bg-provn-surface border border-provn-border rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1">
@@ -373,7 +397,7 @@ export default function StreamsPage() {
               <span className="text-xs text-provn-muted">Net Flow</span>
             </div>
             <p className={`text-lg font-bold font-mono ${netFlow >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {netFlow >= 0 ? '+' : ''}{formatVara(netFlow)}/s
+              {netFlow >= 0 ? '+' : ''}{formatTokenAmount(netFlow)}/s
             </p>
           </div>
         </div>
@@ -382,6 +406,30 @@ export default function StreamsPage() {
       {showCreate && (
         <form onSubmit={handleCreate} className="bg-provn-surface border border-provn-border rounded-xl p-5 space-y-4">
           <h2 className="font-semibold">New Stream</h2>
+          <div className="flex items-center gap-3">
+            <label className="text-xs text-provn-muted">Token:</label>
+            <button
+              type="button" onClick={() => setUseGrow(true)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                useGrow ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'border-provn-border text-provn-muted hover:bg-provn-bg'
+              }`}
+            >
+              GROW Token
+            </button>
+            <button
+              type="button" onClick={() => setUseGrow(false)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                !useGrow ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' : 'border-provn-border text-provn-muted hover:bg-provn-bg'
+              }`}
+            >
+              Native VARA
+            </button>
+          </div>
+          {useGrow && (
+            <p className="text-xs text-emerald-400/70 bg-emerald-500/5 rounded-lg px-3 py-2 border border-emerald-500/10">
+              Deposit GROW into the vault first via the <Link href="/app/grow" className="underline font-medium">GROW Token</Link> page.
+            </p>
+          )}
           <div>
             <label className="block text-xs text-provn-muted mb-1">Receiver Address</label>
             <input
@@ -389,41 +437,78 @@ export default function StreamsPage() {
               className="w-full px-3 py-2 bg-provn-bg border border-provn-border rounded-lg text-sm font-mono focus:border-emerald-500/50 focus:outline-none"
               placeholder="kGk... or 0x..."
             />
-            <p className="text-xs text-provn-muted mt-1">Accepts Vara SS58 or hex address</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-provn-muted mb-1">Flow Rate (units per second)</label>
-              <input
-                value={flowRate} onChange={e => setFlowRate(e.target.value)} required type="number"
-                className="w-full px-3 py-2 bg-provn-bg border border-provn-border rounded-lg text-sm focus:border-emerald-500/50 focus:outline-none"
-                placeholder="e.g. 1000000"
-              />
-              <p className="text-xs text-provn-muted mt-1">1 VARA = 10\u00b9\u00b2 units</p>
+              <label className="block text-xs text-provn-muted mb-1">
+                Flow Rate ({useGrow ? 'GROW' : 'units'} per second)
+              </label>
+              <div className="relative">
+                <input
+                  value={flowRate} onChange={e => setFlowRate(e.target.value)} required type="number" step="any" min="0"
+                  className="w-full px-3 py-2 pr-16 bg-provn-bg border border-provn-border rounded-lg text-sm focus:border-emerald-500/50 focus:outline-none"
+                  placeholder={useGrow ? 'e.g. 0.001' : 'e.g. 1000000'}
+                />
+                {useGrow && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-provn-muted">/sec</span>}
+              </div>
+              {useGrow && (
+                <div className="flex gap-1.5 mt-1.5">
+                  {[
+                    { label: '0.001/s', val: '0.001' },
+                    { label: '0.01/s', val: '0.01' },
+                    { label: '0.1/s', val: '0.1' },
+                  ].map(({ label, val }) => (
+                    <button key={val} type="button" onClick={() => setFlowRate(val)}
+                      className="px-2 py-0.5 rounded text-[10px] border border-provn-border/50 text-provn-muted hover:text-emerald-400 hover:border-emerald-500/30 transition-colors">
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
-              <label className="block text-xs text-provn-muted mb-1">Initial Deposit (units)</label>
-              <input
-                value={deposit} onChange={e => setDeposit(e.target.value)} required type="number"
-                className="w-full px-3 py-2 bg-provn-bg border border-provn-border rounded-lg text-sm focus:border-emerald-500/50 focus:outline-none"
-                placeholder="e.g. 3601000000"
-              />
-              <p className="text-xs text-provn-muted mt-1">Must cover buffer (flow_rate \u00d7 3600s minimum)</p>
+              <label className="block text-xs text-provn-muted mb-1">
+                Initial Deposit ({useGrow ? 'GROW' : 'units'})
+              </label>
+              <div className="relative">
+                <input
+                  value={deposit} onChange={e => setDeposit(e.target.value)} required type="number" step="any" min="0"
+                  className="w-full px-3 py-2 pr-16 bg-provn-bg border border-provn-border rounded-lg text-sm focus:border-emerald-500/50 focus:outline-none"
+                  placeholder={useGrow ? 'e.g. 10' : 'e.g. 3601000000'}
+                />
+                {useGrow && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-provn-muted">GROW</span>}
+              </div>
+              {useGrow && (
+                <div className="flex gap-1.5 mt-1.5">
+                  {['10', '50', '100', '500'].map(v => (
+                    <button key={v} type="button" onClick={() => setDeposit(v)}
+                      className="px-2 py-0.5 rounded text-[10px] border border-provn-border/50 text-provn-muted hover:text-emerald-400 hover:border-emerald-500/30 transition-colors">
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           {flowRate && deposit && (
-            <div className="bg-provn-bg/70 rounded-lg p-3 text-xs space-y-1 border border-provn-border/50">
+            <div className="bg-provn-bg/70 rounded-lg p-3 text-xs space-y-1.5 border border-provn-border/50">
               <div className="flex justify-between">
-                <span className="text-provn-muted">Estimated duration</span>
+                <span className="text-provn-muted">Stream duration</span>
                 <span className="font-mono font-medium">{formatDuration(estDuration)}</span>
               </div>
+              {useGrow && estFlowRatePerDay > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-provn-muted">Daily outflow</span>
+                  <span className="font-mono">{estFlowRatePerDay.toFixed(4)} GROW/day</span>
+                </div>
+              )}
               <div className="flex justify-between">
-                <span className="text-provn-muted">Min buffer required</span>
-                <span className="font-mono">{formatVara(Number(flowRate) * MIN_BUFFER_SECONDS)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-provn-muted">Flow rate</span>
-                <span className="font-mono">{formatVara(flowRate)}/s</span>
+                <span className="text-provn-muted">Min buffer ({MIN_BUFFER_SECONDS / 3600}h)</span>
+                <span className="font-mono">
+                  {useGrow
+                    ? (parseFloat(flowRate) * MIN_BUFFER_SECONDS).toFixed(4) + ' GROW'
+                    : formatTokenAmount(Number(flowRate) * MIN_BUFFER_SECONDS)}
+                </span>
               </div>
             </div>
           )}

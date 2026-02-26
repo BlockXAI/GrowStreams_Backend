@@ -8,7 +8,8 @@ import { api as gsApi, type PayloadResult, type TxResult } from '@/lib/growstrea
 
 const PROGRAM_IDS: Record<string, string> = {
   streamCore: '0x2e7c2064344449504c9c638261bab78238ae50b8a47faac5beae2d1915d70a56',
-  tokenVault: '0xa6b64dd5c89c5c0b12c15a54de23995e91fb23f61de35e50393a0d40b975ac90',
+  tokenVault: '0x7e081c0f82e31e35d845d1932eb36c84bbbb50568eef3c209f7104fabb2c254b',
+  growToken: '0x05a2a482f1a1a7ebf74643f3cc2099597dac81ff92535cbd647948febee8fe36',
   splitsRouter: '0xe4fe59166d824a0f710488b02e039f3fe94980756e3571fc93ba083b5b88b894',
   permissionManager: '0x6cce66023765a57cbc6adf5dfe7df66ee636af56ab7d92a8f614bd8c229f88cb',
   bountyAdapter: '0xd5377611a285d3efcbe9369361647d13f3a9c60ed70d648eaa21c08c72268f81',
@@ -258,6 +259,27 @@ export function usePermissionActions() {
   };
 
   return { grantPermission, revokePermission, loading, error };
+}
+
+export function useGrowTokenActions() {
+  const { signAndSend, loading, error } = useGearSign();
+
+  const approve = async (spender: string, amount: string) => {
+    const res = await gsApi.growToken.approve({ spender: toHex(spender), amount, mode: 'payload' });
+    return signAndSend('growToken', getPayload(res));
+  };
+
+  const transfer = async (to: string, amount: string) => {
+    const res = await gsApi.growToken.transfer({ to: toHex(to), amount, mode: 'payload' });
+    return signAndSend('growToken', getPayload(res));
+  };
+
+  const mint = async (to: string, amount: string) => {
+    const res = await gsApi.growToken.mint({ to: toHex(to), amount, mode: 'payload' });
+    return signAndSend('growToken', getPayload(res));
+  };
+
+  return { approve, transfer, mint, loading, error };
 }
 
 export function useIdentityActions() {

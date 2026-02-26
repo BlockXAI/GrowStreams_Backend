@@ -63,8 +63,10 @@ export interface StreamData {
 }
 
 export interface VaultBalance {
-  deposited: string;
-  allocated: string;
+  owner: string;
+  token: string;
+  total_deposited: string;
+  total_allocated: string;
   available: string;
 }
 
@@ -203,6 +205,24 @@ export const api = {
       post<TxResult | PayloadResult>(`/api/bounty/${id}/complete`, mode ? { mode } : undefined),
     cancel: (id: number, mode?: string) =>
       post<TxResult | PayloadResult>(`/api/bounty/${id}/cancel`, mode ? { mode } : undefined),
+  },
+
+  growToken: {
+    meta: () => get<{ name: string; symbol: string; decimals: number; total_supply: string; admin: string; programId: string }>('/api/grow-token/meta'),
+    balance: (account: string) => get<{ account: string; balance: string }>(`/api/grow-token/balance/${account}`),
+    allowance: (owner: string, spender: string) => get<{ allowance: string }>(`/api/grow-token/allowance/${owner}/${spender}`),
+    totalSupply: () => get<{ totalSupply: string }>('/api/grow-token/total-supply'),
+
+    transfer: (params: { to: string; amount: string; mode?: string }) =>
+      post<TxResult | PayloadResult>('/api/grow-token/transfer', params as unknown as Record<string, unknown>),
+    approve: (params: { spender: string; amount: string; mode?: string }) =>
+      post<TxResult | PayloadResult>('/api/grow-token/approve', params as unknown as Record<string, unknown>),
+    transferFrom: (params: { from: string; to: string; amount: string; mode?: string }) =>
+      post<TxResult | PayloadResult>('/api/grow-token/transfer-from', params as unknown as Record<string, unknown>),
+    mint: (params: { to: string; amount: string; mode?: string }) =>
+      post<TxResult | PayloadResult>('/api/grow-token/mint', params as unknown as Record<string, unknown>),
+    burn: (params: { amount: string; mode?: string }) =>
+      post<TxResult | PayloadResult>('/api/grow-token/burn', params as unknown as Record<string, unknown>),
   },
 
   identity: {
