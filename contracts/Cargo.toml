@@ -6,6 +6,7 @@ members = [
     "permission-manager",
     "adapters/bounty-adapter",
     "identity-registry",
+    "grow-token",
 ]
 resolver = "2"
 

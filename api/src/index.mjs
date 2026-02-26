@@ -14,6 +14,7 @@ import splitsRouter from './routes/splits.mjs';
 import permissionsRouter from './routes/permissions.mjs';
 import bountyRouter from './routes/bounty.mjs';
 import identityRouter from './routes/identity.mjs';
+import growTokenRouter from './routes/grow-token.mjs';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,6 +31,7 @@ app.use('/api/splits', splitsRouter);
 app.use('/api/permissions', permissionsRouter);
 app.use('/api/bounty', bountyRouter);
 app.use('/api/identity', identityRouter);
+app.use('/api/grow-token', growTokenRouter);
 
 app.get('/', (req, res) => {
   res.json({
@@ -97,6 +99,17 @@ app.get('/', (req, res) => {
         verify: 'POST /api/bounty/:id/verify { claimer, score, mode? }',
         complete: 'POST /api/bounty/:id/complete',
         cancel: 'POST /api/bounty/:id/cancel',
+      },
+      growToken: {
+        meta: 'GET /api/grow-token/meta',
+        balance: 'GET /api/grow-token/balance/:account',
+        allowance: 'GET /api/grow-token/allowance/:owner/:spender',
+        totalSupply: 'GET /api/grow-token/total-supply',
+        transfer: 'POST /api/grow-token/transfer { to, amount, mode? }',
+        approve: 'POST /api/grow-token/approve { spender, amount, mode? }',
+        transferFrom: 'POST /api/grow-token/transfer-from { from, to, amount, mode? }',
+        mint: 'POST /api/grow-token/mint { to, amount, mode? }',
+        burn: 'POST /api/grow-token/burn { amount, mode? }',
       },
       identity: {
         oracle: 'GET /api/identity/oracle',

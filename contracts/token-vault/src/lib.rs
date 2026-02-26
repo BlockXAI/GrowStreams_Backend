@@ -5,6 +5,15 @@ use sails_rs::{
     gstd::msg,
     prelude::*,
 };
+use gstd::msg as gstd_msg;
+
+fn encode_call(service: &str, method: &str, args: impl Encode) -> Vec<u8> {
+    let mut payload = Vec::new();
+    service.encode_to(&mut payload);
+    method.encode_to(&mut payload);
+    args.encode_to(&mut payload);
+    payload
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -107,8 +116,20 @@ impl VaultService {
         let state = TokenVaultState::get();
         assert!(!state.config.paused, "Vault is paused");
         assert!(amount > 0, "Amount must be > 0");
+        assert!(token != ActorId::zero(), "Use deposit_native for VARA");
 
         let caller = msg::source();
+
+        // Pull tokens from caller via VFT transfer_from(caller, vault, amount)
+        let vault_id = gstd::exec::program_id();
+        let payload = encode_call(
+            "VftService",
+            "TransferFrom",
+            (caller, vault_id, amount),
+        );
+        gstd_msg::send_bytes_with_gas(token, payload, 5_000_000_000, 0)
+            .expect("VFT transfer_from failed");
+
         let balance = state.get_or_create_balance(caller, token);
         balance.total_deposited = balance.total_deposited.saturating_add(amount);
         balance.available = balance.available.saturating_add(amount);
@@ -131,12 +152,22 @@ impl VaultService {
     pub fn withdraw_tokens(&mut self, token: ActorId, amount: u128) {
         let state = TokenVaultState::get();
         assert!(!state.config.paused, "Vault is paused");
+        assert!(token != ActorId::zero(), "Use withdraw_native for VARA");
 
         let caller = msg::source();
         let balance = state.get_or_create_balance(caller, token);
         assert!(balance.available >= amount, "Insufficient available balance");
 
         balance.available = balance.available.saturating_sub(amount);
+
+        // Send tokens to caller via VFT transfer(caller, amount)
+        let payload = encode_call(
+            "VftService",
+            "Transfer",
+            (caller, amount),
+        );
+        gstd_msg::send_bytes_with_gas(token, payload, 5_000_000_000, 0)
+            .expect("VFT transfer failed");
     }
 
     pub fn withdraw_native(&mut self, amount: u128) {
@@ -229,8 +260,14 @@ impl VaultService {
         if token == ActorId::zero() {
             msg::send(receiver, b"", amount).expect("Failed to send native VARA");
         } else {
-            // In production: call fungible token program to transfer to receiver
-            let _ = (token, receiver);
+            // Send tokens to receiver via VFT transfer(receiver, amount)
+            let payload = encode_call(
+                "VftService",
+                "Transfer",
+                (receiver, amount),
+            );
+            gstd_msg::send_bytes_with_gas(token, payload, 5_000_000_000, 0)
+                .expect("VFT transfer to receiver failed");
         }
     }
 

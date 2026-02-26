@@ -7,9 +7,9 @@
     "node": "wss://testnet.vara.network"
   },
   "token-vault": {
-    "programId": "0xa6b64dd5c89c5c0b12c15a54de23995e91fb23f61de35e50393a0d40b975ac90",
-    "codeId": "0x70107c7bec376973c4df086d0d880b5622bf8e13e5a51cd054cb33b584267871",
-    "deployedAt": "2026-02-24T09:30:57.190Z",
+    "programId": "0x7e081c0f82e31e35d845d1932eb36c84bbbb50568eef3c209f7104fabb2c254b",
+    "codeId": "0xe8306582e374e42b38bbba619fd6a441e65b33d1ef6a937db06736473d765a86",
+    "deployedAt": "2026-02-25T18:54:56.057Z",
     "network": "vara-testnet",
     "node": "wss://testnet.vara.network"
   },
@@ -38,6 +38,13 @@
     "programId": "0xb6389d1da594b84a73f3a5178caa25ff56ec0f57f2f8a9d42f8b1b6fba9d948a",
     "codeId": "0xeb639717ee6a21aa9c4a403736b04bdd8af5b5e3d8b93102518fbc4692df94bb",
     "deployedAt": "2026-02-22T22:47:07.776Z",
+    "network": "vara-testnet",
+    "node": "wss://testnet.vara.network"
+  },
+  "grow-token": {
+    "programId": "0x05a2a482f1a1a7ebf74643f3cc2099597dac81ff92535cbd647948febee8fe36",
+    "codeId": "0x92926391082ecb8df5dc481f402c8b76687ba1d0696a2653d48b018dcbc8dff9",
+    "deployedAt": "2026-02-25T18:54:39.822Z",
     "network": "vara-testnet",
     "node": "wss://testnet.vara.network"
   }

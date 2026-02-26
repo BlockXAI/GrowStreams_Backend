@@ -19,6 +19,7 @@ function findIdl(filename) {
     'permission-manager.idl': 'contracts/permission-manager/permission-manager.idl',
     'bounty-adapter.idl': 'contracts/adapters/bounty-adapter/bounty-adapter.idl',
     'identity-registry.idl': 'contracts/identity-registry/identity-registry.idl',
+    'grow-token.idl': 'contracts/grow-token/grow-token.idl',
   };
   return resolve(PROJECT_ROOT, contractMap[filename] || filename);
 }
@@ -30,6 +31,7 @@ const IDL_PATHS = {
   permissionManager: findIdl('permission-manager.idl'),
   bountyAdapter: findIdl('bounty-adapter.idl'),
   identityRegistry: findIdl('identity-registry.idl'),
+  growToken: findIdl('grow-token.idl'),
 };
 
 let gearApi = null;
@@ -43,6 +45,7 @@ const contracts = {
   permissionManager: null,
   bountyAdapter: null,
   identityRegistry: null,
+  growToken: null,
 };
 
 const SERVICE_NAMES = {
@@ -52,6 +55,7 @@ const SERVICE_NAMES = {
   permissionManager: 'PermissionService',
   bountyAdapter: 'BountyService',
   identityRegistry: 'IdentityService',
+  growToken: 'VftService',
 };
 
 function loadDeployState() {
@@ -77,6 +81,7 @@ const DEPLOY_KEY_MAP = {
   permissionManager: 'permission-manager',
   bountyAdapter: 'bounty-adapter',
   identityRegistry: 'identity-registry',
+  growToken: 'grow-token',
 };
 
 async function initSailsInstance(name, idlPath, programId) {
@@ -124,6 +129,7 @@ export async function connect() {
     permissionManager: process.env.PERMISSION_MANAGER_ID,
     bountyAdapter: process.env.BOUNTY_ADAPTER_ID,
     identityRegistry: process.env.IDENTITY_REGISTRY_ID,
+    growToken: process.env.GROW_TOKEN_ID,
   };
 
   for (const [name, idlPath] of Object.entries(IDL_PATHS)) {
