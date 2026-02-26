@@ -1,7 +1,7 @@
 # GrowStreams Foundation Demo Script
-**Two-Wallet Live Stream Demonstration**
+**Complete Walkthrough: GROW Token, Vault, and Streaming**
 
-> **Duration:** 8-10 minutes  
+> **Duration:** 10-12 minutes  
 > **Setup:** Two browser windows side-by-side (Sender/Admin + Receiver)  
 > **Network:** Vara Testnet  
 > **URL:** https://growstreams-v2.vercel.app/app
@@ -11,338 +11,198 @@
 ## Pre-Demo Setup (Do Before Recording)
 
 ### Wallet 1: Admin/Sender Account
-- Connect wallet with sufficient VARA for gas
+- Connect wallet with sufficient VARA for gas (~50 VARA recommended)
 - Note address for script
 
 ### Wallet 2: Receiver Account  
 - Connect in separate browser/incognito window
 - Note address for script
-- Start with 0 GROW balance (clean slate)
+- Start with 0 GROW balance (clean slate) if possible
 
 ---
 
 ## DEMO SCRIPT
 
-### **[00:00-00:30] Introduction & Overview**
+### **[00:00-00:45] Introduction & Overview**
 
 **[Screen: Landing page or Dashboard]**
 
-> "Welcome to GrowStreams, a real-time money streaming protocol built on Vara Network. Today I'll demonstrate our complete token streaming lifecycle using two wallets - showing how tokens flow continuously, per-second, from sender to receiver on-chain."
+> "Welcome to GrowStreams, a programmable money streaming protocol built on Vara Network. Today I'll demonstrate the complete lifecycle: managing tokens, using the vault escrow system, and creating real-time streams."
 
 **[Show both browser windows side-by-side]**
 
-> "On the left, we have our sender wallet [show address]. On the right, our receiver wallet [show address]. Let's walk through the complete flow."
+> "On the left, I have my Sender wallet. On the right, a Receiver wallet. We'll show how tokens flow continuously on-chain between them."
 
 ---
 
-### **[00:30-01:30] Step 1: Get GROW Tokens (Sender Wallet)**
+### **[00:45-02:00] Part 1: The GROW Token Page**
 
-**[Left screen: Navigate to GROW Token page]**
+**[Left screen: Navigate to 'Get GROW' / 'GROW Token' page]**
 
-> "First, our sender needs GROW tokens. GrowStreams uses a custom VFT token on Vara for streaming."
+> "GrowStreams uses the GROW token (a VFT standard token) for streaming. Let's start by getting some tokens."
 
-**[Click 'Get GROW Tokens' or Faucet button]**
+**[Click 'Faucet' button]**
 
-> "We have a testnet faucet that mints 1,000 GROW tokens per request with a 5-minute cooldown."
-
-**[Execute faucet request]**
-
-> "The faucet is server-signed for convenience, but all other operations require wallet signatures for security."
+> "I'll use the testnet faucet to mint 1,000 GROW tokens. This interacts directly with the VFT contract on Vara."
 
 **[Wait for confirmation, show balance update]**
 
-> "Perfect - we now have 1,000 GROW tokens. You can see our balance updated here in real-time."
+> "Transaction confirmed. We now have 1,000 GROW. On this page, you can also transfer tokens directly or approve them for the vault, which brings us to the next step."
 
 ---
 
-### **[01:30-02:30] Step 2: Approve Vault (Sender Wallet)**
+### **[02:00-04:00] Part 2: The Vault (Escrow System)**
 
 **[Navigate to Vault page]**
 
-> "Before we can stream, we need to approve the TokenVault contract to manage our GROW tokens. This is a standard ERC20-style approval pattern."
+> "The Vault is the heart of the protocol. It's a secure smart contract that holds funds and allocates them to your active streams. This separation ensures that even if you have 10 streams, you only need one deposit balance."
 
-**[Click 'Approve Vault' or show approval interface]**
+**[Toggle between VARA and GROW tabs]**
 
-> "We'll approve 100 GROW tokens for the vault to use."
+> "The Vault supports multiple assets. Here we have the Native VARA Vault and the GROW Token Vault. Let's look at the GROW Vault first."
 
-**[Sign transaction in wallet]**
+**[Select GROW tab]**
 
-> "Notice this requires a wallet signature - we're giving permission for the vault to pull tokens on our behalf when we create streams."
+> "First, we need to approve the Vault to spend our GROW tokens."
+
+**[Click 'Approve', enter 500, sign transaction]**
+
+> "I'm approving 500 tokens. Now, let's deposit."
+
+**[Click 'Deposit', enter 100, sign transaction]**
+
+> "I'm depositing 100 GROW. Watch the 'Current Balance' update."
+
+**[Show Balance Breakdown]**
+
+> "Now look at this breakdown. We have a 'Current Balance' of 100 GROW.
+> - **Available:** 100 GROW (Ready to be streamed)
+> - **In Streams:** 0 GROW (No active streams yet)
+> This 'Available' balance is what we can withdraw or allocate."
+
+---
+
+### **[04:00-05:00] Part 2b: Native VARA Vault Support**
+
+**[Select VARA tab]**
+
+> "We also support Native VARA. This uses a different on-chain mechanism (`DepositNative`) since VARA isn't a VFT token."
+
+**[Click 'Deposit', enter 5 VARA, sign transaction]**
+
+> "I'm depositing 5 VARA directly into the contract escrow."
 
 **[Wait for confirmation]**
 
-> "Approval confirmed. The vault can now escrow our tokens for streaming."
+> "And there it is. 5 VARA in the Vault, fully secured on-chain. We can withdraw this at any time."
+
+**[Click 'Withdraw', enter 1 VARA, sign transaction]**
+
+> "Let me prove custody by withdrawing 1 VARA back to my wallet immediately."
+
+> "Success. The Vault handles both native assets and tokens seamlessly."
 
 ---
 
-### **[02:30-03:30] Step 3: Deposit to Vault (Sender Wallet)**
+### **[05:00-07:00] Part 3: Creating a Stream**
 
-**[Still on Vault page]**
+**[Navigate to Streams page]**
 
-> "Now let's deposit tokens into our vault balance. The vault acts as an escrow - it holds tokens and allocates them to active streams."
+> "Now for the core feature: Real-time Streaming. We'll stream GROW tokens to our receiver."
 
-**[Enter deposit amount: 50 GROW]**
+**[Click 'Create Stream']**
 
-> "We'll deposit 50 GROW tokens into the vault."
+> "I'll create a new stream."
 
-**[Sign transaction]**
+**[Fill in form]**
+- **Receiver:** [Paste Receiver Address]
+- **Token:** GROW Token (Pre-selected)
+- **Flow Rate:** 0.001 GROW/second
+- **Initial Deposit:** 20 GROW
 
-> "This transaction calls the vault's deposit function, which pulls tokens from our wallet using the approval we just granted."
-
-**[Show vault balance update]**
-
-> "Excellent - our vault balance now shows 50 GROW available for streaming. Notice the distinction between 'total deposited' and 'available' - available is what's not currently allocated to active streams."
-
----
-
-### **[03:30-05:00] Step 4: Create Stream (Sender Wallet)**
-
-**[Navigate to Streams page, click 'Create Stream']**
-
-> "Now for the core feature - creating a real-time token stream."
-
-**[Fill in stream creation form]**
-
-- **Receiver Address:** [paste receiver wallet address]
-  > "We're streaming to our second wallet here."
-
-- **Token:** GROW Token [auto-selected]
-  > "Streaming GROW tokens."
-
-- **Flow Rate:** 0.001 GROW/second (1,000,000 units/sec)
-  > "The flow rate is 0.001 GROW per second - that's 3.6 GROW per hour, or 86.4 GROW per day."
-
-- **Initial Deposit:** 10 GROW
-  > "We need to deposit at least 1 hour of buffer time. I'm depositing 10 GROW, which gives us about 2.7 hours of runway."
+> "I'm setting a flow rate of 0.001 tokens per second. I'll allocate 20 GROW from my Vault 'Available' balance to this stream. This gives it a runway (buffer) of about 5 hours."
 
 **[Click 'Create Stream', sign transaction]**
 
-> "Creating the stream... This transaction creates the stream state on-chain and allocates 10 GROW from our vault balance to this stream."
+> "The contract is now allocating funds and creating the stream state."
 
-**[Wait for confirmation, show stream details]**
+**[Show Stream Card]**
 
-> "Stream created! Notice the stream ID, status 'Active', and the real-time balance counter. The 'Streamed' amount is updating every second as tokens flow."
+> "Stream created! Status is 'Active'. Look at the 'Streamed' counter—it's increasing every second. This isn't an animation; it's the on-chain accrued value increasing with every block."
 
-**[Point to vault balance]**
+**[Quickly switch back to Vault page]**
 
-> "Back in our vault, you can see 'allocated' increased by 10 GROW, and 'available' decreased accordingly."
-
----
-
-### **[05:00-06:30] Step 5: Receiver Sees Incoming Stream**
-
-**[Switch to right screen: Receiver wallet]**
-
-**[Navigate to Dashboard or Streams page]**
-
-> "Now let's switch to our receiver wallet. Without any action from the receiver, they can already see the incoming stream."
-
-**[Show 'Incoming Streams' or receiver stream list]**
-
-> "Here's our stream - notice it shows the sender address, flow rate, and most importantly, the 'Withdrawable Balance' that's growing in real-time."
-
-**[Let it run for 10-15 seconds, show balance incrementing]**
-
-> "Watch this number - it's increasing every second. This is real on-chain streaming. The receiver has already earned [X] GROW tokens in just these few seconds."
-
-**[Show stream details page]**
-
-> "The stream details show the full lifecycle: when it started, how much has been streamed, how much buffer time remains before it runs out of funds."
+> "If we check the Vault now, notice the change:
+> - **Current Balance:** 99 GROW
+> - **In Streams:** 20 GROW (Allocated)
+> - **Available:** 79 GROW
+> The funds are locked for the stream but still belong to me until they are withdrawn."
 
 ---
 
-### **[06:30-07:30] Step 6: Receiver Withdraws Tokens**
+### **[07:00-08:30] Part 4: Receiver View & Withdrawal**
 
-**[Still on receiver screen]**
+**[Switch to Receiver Window (Right Screen)]**
 
-> "The receiver can withdraw their accrued tokens at any time without stopping the stream."
+> "Now I'm the Receiver. I didn't have to do anything. The stream just appeared in my dashboard."
 
-**[Click 'Withdraw' button]**
+**[Show Incoming Stream]**
 
-> "Let's withdraw now."
+> "I can see who is paying me, the rate, and my 'Withdrawable Balance'. This balance is rightfully mine right now."
 
-**[Sign transaction]**
+**[Click 'Withdraw', sign transaction]**
 
-> "This transaction pulls the accrued tokens from the stream into the receiver's wallet."
+> "I'll claim my earnings. I don't need to stop the stream to do this. I'm just withdrawing what has accrued so far."
 
-**[Show GROW balance update on receiver wallet]**
+**[Show Wallet Balance Update]**
 
-> "Perfect - the receiver's GROW balance just increased. They now own these tokens outright and can transfer, trade, or use them however they want."
-
-**[Show stream still active]**
-
-> "Notice the stream is still active and continues to accrue. The 'Withdrawn' amount updated, but the stream keeps flowing."
+> "Transaction complete. My wallet balance just went up, and the stream 'Withdrawn' amount updated. The stream keeps flowing uninterrupted."
 
 ---
 
-### **[07:30-08:30] Step 7: Stream Management (Sender Wallet)**
+### **[08:30-10:00] Part 5: Stream Management (Sender)**
 
-**[Switch back to left screen: Sender wallet]**
+**[Switch to Sender Window (Left Screen)]**
 
-**[Navigate to stream details]**
+> "Back to the Sender. I have full control."
 
-> "As the sender, I have full control over the stream lifecycle. Let me show you the management features."
+**[Demonstrate Actions]**
 
-**[Show 'Pause' button]**
+1.  **Pause:** "I can pause the stream if I need to stop payment temporarily." [Click Pause] -> Status: Paused.
+2.  **Resume:** "And resume it just as easily." [Click Resume] -> Status: Active.
+3.  **Top Up:** "If the buffer is running low, I can deposit more tokens directly into this stream to extend its life." [Click Deposit, add 10 GROW].
+4.  **Edit Rate:** "I can even update the flow rate dynamically." [Click Edit, change to 0.002].
 
-> "I can pause the stream temporarily - this stops the token flow but preserves the stream state."
+**[Stop Stream]**
 
-**[Click Pause, sign transaction]**
+> "Finally, when the job is done, I stop the stream."
 
-**[Show status change to 'Paused']**
+**[Click 'Stop']**
 
-> "Stream paused. The receiver can no longer accrue tokens, but I can resume it anytime."
-
-**[Click Resume, sign transaction]**
-
-> "And resume - the stream is active again."
-
-**[Show 'Add Deposit' option]**
-
-> "I can also add more funds to extend the stream's runway without creating a new stream."
-
-**[Optional: demonstrate adding 5 GROW]**
-
-> "Added 5 more GROW - the buffer time just increased."
-
-**[Show 'Update Flow Rate' option]**
-
-> "I can even change the flow rate on the fly - increase or decrease the tokens per second."
-
-**[Show 'Stop Stream' button]**
-
-> "Finally, I can permanently stop the stream. This returns any remaining buffer to my vault balance and closes the stream."
+> "Stopping the stream settles the final amount to the receiver and returns all unspent 'allocated' funds back to my Vault 'Available' balance automatically."
 
 ---
 
-### **[08:30-09:00] Step 8: Vault Withdrawal (Sender Wallet)**
+### **[10:00-11:00] Conclusion**
 
-**[Navigate back to Vault page]**
+**[Show Dashboard]**
 
-> "Let's say I'm done streaming and want my remaining tokens back."
+> "And that is GrowStreams on Vara."
 
-**[Show available balance]**
+> "**Recap:**
+> 1.  **Get Tokens:** Mint or transfer GROW.
+> 2.  **Vault:** Securely deposit assets (VARA or GROW).
+> 3.  **Stream:** Create per-second payment flows.
+> 4.  **Manage:** Pause, update, or stop anytime.
+> 5.  **Claim:** Receivers withdraw earnings instantly."
 
-> "I have [X] GROW available in the vault - this is the amount not allocated to any active streams."
-
-**[Click 'Withdraw from Vault']**
-
-**[Enter amount, sign transaction]**
-
-> "Withdrawing back to my wallet... and done. The tokens are now back in my direct control."
-
----
-
-### **[09:00-09:30] Closing & Key Features Summary**
-
-**[Show dashboard with stats]**
-
-> "Let me summarize what we just demonstrated:
-
-**On-Chain Streaming:**
-- Real per-second token flow on Vara Network
-- No off-chain computation - everything is on-chain state
-
-**Vault Escrow System:**
-- Secure token custody with allocation tracking
-- Deposit once, create multiple streams
-
-**Stream Lifecycle:**
-- Create, pause, resume, update, stop
-- Real-time balance accrual
-- Withdraw anytime without stopping stream
-
-**Two-Sided Interface:**
-- Senders manage outgoing streams and deposits
-- Receivers track incoming streams and withdraw
-
-**Production Ready:**
-- All contracts deployed and verified on Vara Testnet
-- Full REST API for integration
-- TypeScript SDK available
-
-> "This is GrowStreams - programmable money streaming for payroll, subscriptions, grants, and any continuous payment use case. Thank you."
+> "This infrastructure enables payroll, subscriptions, and grants to be fully automated and trustless. Thank you."
 
 ---
 
-## Post-Demo Talking Points (Q&A)
+## Technical Notes for the Demo Driver
 
-### Technical Architecture
-- **Contracts:** StreamCore (state machine), TokenVault (escrow), GROW Token (VFT)
-- **Network:** Vara (Polkadot parachain) using Gear Protocol WASM actors
-- **Frontend:** Next.js 15, React 19, TailwindCSS, Framer Motion
-- **Backend:** Express REST API with sails-js for contract interaction
-
-### Key Differentiators
-- **Per-second granularity** - not batch settlements
-- **On-chain state** - no off-chain indexers required for core functionality
-- **Composable** - streams can be used as primitives for splits, bounties, subscriptions
-- **Gas efficient** - Vara's actor model enables cheap continuous computation
-
-### Use Cases
-1. **Payroll** - Stream salaries by the second to employees
-2. **Subscriptions** - Continuous payment for SaaS, content, services
-3. **Grants** - Milestone-based or time-based funding for projects
-4. **Revenue Sharing** - Split incoming streams to multiple recipients
-5. **Vesting** - Token vesting with per-second unlock
-
-### Roadmap
-- Multi-token support (USDC, native VARA)
-- Splits router for weighted distribution
-- Bounty adapter for milestone-based streams
-- Permission delegation system
-- Mobile wallet support
-
----
-
-## Technical Demo Tips
-
-### If Something Goes Wrong
-
-**Transaction Fails:**
-> "Let me retry that - testnet can be congested. [retry]"
-
-**Balance Not Updating:**
-> "The UI polls every few seconds - let's refresh. [refresh page]"
-
-**Wallet Connection Issues:**
-> "Let me reconnect the wallet. [disconnect/reconnect]"
-
-### Timing Tips
-
-- **Let streams run for 15-30 seconds** between creation and withdrawal to show meaningful accrual
-- **Prepare wallet addresses in advance** - don't fumble copying/pasting during demo
-- **Have faucet cooldown ready** - if you need to demo faucet, make sure 5 min has passed
-- **Test the full flow once** before recording to ensure gas balances are sufficient
-
-### Visual Enhancements
-
-- **Use browser zoom** to make UI elements clearly visible (125-150%)
-- **Highlight cursor** in screen recording software
-- **Use split-screen view** for two-wallet demonstration
-- **Show transaction confirmations** in wallet popup for transparency
-
----
-
-## Alternative: Single-Wallet Demo (Shorter Version)
-
-If you only have 5 minutes or want a simpler demo:
-
-1. **[1 min]** Show pre-funded wallet with GROW tokens
-2. **[1 min]** Create stream to a fixed test address
-3. **[2 min]** Show stream running, explain flow rate and buffer
-4. **[1 min]** Demonstrate pause/resume and stream management
-
-This skips the receiver perspective but still shows the core streaming functionality.
-
----
-
-## Script Customization Notes
-
-- Replace `[X]` placeholders with actual values during demo
-- Adjust timing based on network speed (testnet can be slow)
-- Add foundation-specific talking points (e.g., grant use cases, ecosystem fit)
-- Emphasize Vara/Polkadot ecosystem integration if presenting to Vara Foundation
-- Highlight open-source nature and SDK availability for developer adoption
-
-**Good luck with your demo! 🚀**
+1.  **VARA Vault:** The `DepositNative` fix is deployed. It works! Make sure to show it to prove we handle native assets.
+2.  **Allocated vs. Available:** Emphasize this distinction in the Vault. It proves the solvency model (funds are reserved).
+3.  **Flow Rate:** Use `0.001` or `0.01`. If you use `1.0`, it drains too fast for a demo.
+4.  **Wait Times:** Vara testnet blocks are ~3s. Fill the silence while waiting for the "Success" toast.

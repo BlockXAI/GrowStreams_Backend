@@ -35,3 +35,4 @@ frontend/.git.backup/
 
 # Deployment state (contains program IDs, safe to commit selectively)
 # deploy-state.json
+.vercel
