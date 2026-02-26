@@ -223,6 +223,22 @@ export const api = {
       post<TxResult | PayloadResult>('/api/grow-token/mint', params as unknown as Record<string, unknown>),
     burn: (params: { amount: string; mode?: string }) =>
       post<TxResult | PayloadResult>('/api/grow-token/burn', params as unknown as Record<string, unknown>),
+
+    faucet: (to: string) =>
+      post<{ success: boolean; to: string; amount: string; amountHuman: string; blockHash: string }>('/api/grow-token/faucet', { to } as Record<string, unknown>),
+    faucetConfig: () =>
+      get<{ mode: string; amountPerMint: string; amountHuman: string; rateLimitSeconds: number }>('/api/grow-token/faucet/config'),
+
+    adminInfo: () =>
+      get<{ adminAddress: string | null; faucetMode: string; whitelistCount: number }>('/api/grow-token/admin/info'),
+    getWhitelist: () =>
+      get<{ mode: string; whitelist: string[] }>('/api/grow-token/admin/whitelist'),
+    addToWhitelist: (address: string) =>
+      post<{ added: string; total: number }>('/api/grow-token/admin/whitelist', { address } as Record<string, unknown>),
+    removeFromWhitelist: (address: string) =>
+      del<{ removed: string; total: number }>(`/api/grow-token/admin/whitelist/${address}`),
+    setFaucetMode: (mode: string) =>
+      post<{ mode: string }>('/api/grow-token/admin/faucet-mode', { mode } as Record<string, unknown>),
   },
 
   identity: {

@@ -1,8 +1,57 @@
 import { Router } from 'express';
-import { query, command, encodePayload, getProgramIds } from '../sails-client.mjs';
+import { query, command, encodePayload, getProgramIds, getKeyring } from '../sails-client.mjs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const router = Router();
 const C = 'growToken';
+
+const FAUCET_AMOUNT = BigInt('1000000000000000'); // 1,000 GROW
+const RATE_LIMIT_MS = 5 * 60 * 1000; // 5 minutes between requests per address
+
+const faucetState = {
+  mode: 'public',       // 'public' | 'whitelist'
+  whitelist: new Set(),
+  lastMint: new Map(),  // address -> timestamp
+};
+
+const STATE_FILE = resolve(__dirname, '../../faucet-state.json');
+
+function loadFaucetState() {
+  try {
+    if (existsSync(STATE_FILE)) {
+      const data = JSON.parse(readFileSync(STATE_FILE, 'utf-8'));
+      faucetState.mode = data.mode || 'public';
+      faucetState.whitelist = new Set(data.whitelist || []);
+    }
+  } catch { /* start fresh */ }
+}
+
+function saveFaucetState() {
+  try {
+    writeFileSync(STATE_FILE, JSON.stringify({
+      mode: faucetState.mode,
+      whitelist: [...faucetState.whitelist],
+    }, null, 2));
+  } catch (err) {
+    console.warn('[faucet] Failed to persist state:', err.message);
+  }
+}
+
+loadFaucetState();
+
+function getAdminAddress() {
+  const kr = getKeyring();
+  return kr?.address || null;
+}
+
+function isAdmin(address) {
+  const admin = getAdminAddress();
+  if (!admin) return false;
+  return address?.toLowerCase() === admin.toLowerCase();
+}
 
 function toBigIntStr(v) {
   if (v == null) return '0';
@@ -110,6 +159,93 @@ router.post('/burn', async (req, res, next) => {
     const { result, blockHash } = await command(C, 'Burn', BigInt(amount));
     res.json({ amount, blockHash });
   } catch (err) { next(err); }
+});
+
+// --- Faucet: server-side minting (uses admin keyring) ---
+
+router.post('/faucet', async (req, res, next) => {
+  try {
+    const { to } = req.body;
+    if (!to) return res.status(400).json({ error: 'Missing: to (recipient address)' });
+
+    const addrLower = to.toLowerCase();
+
+    // Check whitelist mode
+    if (faucetState.mode === 'whitelist' && !faucetState.whitelist.has(addrLower)) {
+      return res.status(403).json({ error: 'Address not whitelisted. Contact admin to get access.' });
+    }
+
+    // Rate limit
+    const lastTime = faucetState.lastMint.get(addrLower);
+    if (lastTime && Date.now() - lastTime < RATE_LIMIT_MS) {
+      const waitSec = Math.ceil((RATE_LIMIT_MS - (Date.now() - lastTime)) / 1000);
+      return res.status(429).json({ error: `Rate limited. Try again in ${waitSec}s.` });
+    }
+
+    // Mint using server-side admin keyring
+    const { result, blockHash } = await command(C, 'Mint', to, FAUCET_AMOUNT);
+    faucetState.lastMint.set(addrLower, Date.now());
+
+    res.json({
+      success: true,
+      to,
+      amount: FAUCET_AMOUNT.toString(),
+      amountHuman: '1,000 GROW',
+      blockHash,
+    });
+  } catch (err) { next(err); }
+});
+
+router.get('/faucet/config', async (req, res) => {
+  res.json({
+    mode: faucetState.mode,
+    amountPerMint: FAUCET_AMOUNT.toString(),
+    amountHuman: '1,000 GROW',
+    rateLimitSeconds: RATE_LIMIT_MS / 1000,
+  });
+});
+
+// --- Admin: whitelist management ---
+
+router.get('/admin/info', async (req, res) => {
+  const kr = getKeyring();
+  res.json({
+    adminAddress: kr?.address || null,
+    faucetMode: faucetState.mode,
+    whitelistCount: faucetState.whitelist.size,
+  });
+});
+
+router.get('/admin/whitelist', async (req, res) => {
+  res.json({
+    mode: faucetState.mode,
+    whitelist: [...faucetState.whitelist],
+  });
+});
+
+router.post('/admin/whitelist', async (req, res) => {
+  const { address } = req.body;
+  if (!address) return res.status(400).json({ error: 'Missing: address' });
+  faucetState.whitelist.add(address.toLowerCase());
+  saveFaucetState();
+  res.json({ added: address, total: faucetState.whitelist.size });
+});
+
+router.delete('/admin/whitelist/:address', async (req, res) => {
+  const addr = req.params.address.toLowerCase();
+  faucetState.whitelist.delete(addr);
+  saveFaucetState();
+  res.json({ removed: req.params.address, total: faucetState.whitelist.size });
+});
+
+router.post('/admin/faucet-mode', async (req, res) => {
+  const { mode } = req.body;
+  if (mode !== 'public' && mode !== 'whitelist') {
+    return res.status(400).json({ error: 'mode must be "public" or "whitelist"' });
+  }
+  faucetState.mode = mode;
+  saveFaucetState();
+  res.json({ mode: faucetState.mode });
 });
 
 export default router;

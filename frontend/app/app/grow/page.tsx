@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import {
   Coins, Wallet, ArrowRightLeft, CheckCircle, ArrowUpFromLine,
   ArrowDownToLine, Copy, RefreshCw, Zap, Shield, Waves,
-  TrendingUp, Lock, ChevronRight,
+  TrendingUp, Lock, ChevronRight, Settings, UserPlus, Trash2,
 } from 'lucide-react';
 
 const GROW_TOKEN_ID = '0x05a2a482f1a1a7ebf74643f3cc2099597dac81ff92535cbd647948febee8fe36';
@@ -63,7 +63,13 @@ export default function GrowTokenPage() {
   const [totalSupply, setTotalSupply] = useState('0');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'faucet' | 'approve' | 'vault' | 'transfer'>('faucet');
+  const [activeTab, setActiveTab] = useState<'faucet' | 'approve' | 'vault' | 'transfer' | 'admin'>('faucet');
+
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminAddress, setAdminAddress] = useState<string | null>(null);
+  const [faucetMode, setFaucetMode] = useState('public');
+  const [whitelist, setWhitelist] = useState<string[]>([]);
+  const [newWhitelistAddr, setNewWhitelistAddr] = useState('');
 
   const [transferTo, setTransferTo] = useState('');
   const [transferAmount, setTransferAmount] = useState('');
@@ -99,6 +105,31 @@ export default function GrowTokenPage() {
   }, [account]);
 
   useEffect(() => { loadBalances(); }, [loadBalances]);
+
+  useEffect(() => {
+    Promise.all([
+      api.growToken.meta().catch(() => null),
+      api.growToken.adminInfo().catch(() => null),
+    ]).then(([meta, info]) => {
+      const contractAdmin = meta?.admin?.toLowerCase();
+      const userHex = account?.decodedAddress?.toLowerCase();
+      if (contractAdmin && userHex) {
+        setIsAdmin(contractAdmin === userHex);
+      }
+      if (info) {
+        setAdminAddress(info.adminAddress);
+        setFaucetMode(info.faucetMode);
+      }
+    });
+  }, [account]);
+
+  const loadAdminData = useCallback(async () => {
+    try {
+      const data = await api.growToken.getWhitelist();
+      setWhitelist(data.whitelist);
+      setFaucetMode(data.mode);
+    } catch { /* not admin or API down */ }
+  }, []);
 
   const handleTransfer = async () => {
     if (!transferTo || !transferAmount) return;
@@ -164,12 +195,45 @@ export default function GrowTokenPage() {
     if (!account?.decodedAddress) return;
     setBusy('faucet');
     try {
-      await tokenActions.mint(account.decodedAddress, '1000000000000000');
-      toast.success('Minted 1,000 GROW to your wallet');
-      setTimeout(loadBalances, 3000);
+      await api.growToken.faucet(account.decodedAddress);
+      toast.success('Minted 1,000 GROW to your wallet!');
+      setTimeout(loadBalances, 5000);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Faucet mint failed');
+      toast.error(err instanceof Error ? err.message : 'Faucet request failed');
     } finally { setBusy(null); }
+  };
+
+  const handleAddWhitelist = async () => {
+    if (!newWhitelistAddr) return;
+    try {
+      await api.growToken.addToWhitelist(newWhitelistAddr);
+      toast.success('Address whitelisted');
+      setNewWhitelistAddr('');
+      loadAdminData();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  };
+
+  const handleRemoveWhitelist = async (addr: string) => {
+    try {
+      await api.growToken.removeFromWhitelist(addr);
+      toast.success('Address removed');
+      loadAdminData();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
+  };
+
+  const handleToggleFaucetMode = async () => {
+    const newMode = faucetMode === 'public' ? 'whitelist' : 'public';
+    try {
+      await api.growToken.setFaucetMode(newMode);
+      setFaucetMode(newMode);
+      toast.success(`Faucet mode: ${newMode}`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed');
+    }
   };
 
   const copyAddress = () => {
@@ -293,6 +357,7 @@ export default function GrowTokenPage() {
             { id: 'approve' as const, label: 'Approve', icon: CheckCircle },
             { id: 'vault' as const, label: 'Vault', icon: ArrowUpFromLine },
             { id: 'transfer' as const, label: 'Transfer', icon: ArrowRightLeft },
+            ...(isAdmin ? [{ id: 'admin' as const, label: 'Admin', icon: Settings }] : []),
           ].map(({ id, label, icon: Icon }) => (
             <button key={id} onClick={() => setActiveTab(id)}
               className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
@@ -330,6 +395,11 @@ export default function GrowTokenPage() {
               </div>
               {!account && (
                 <p className="text-xs text-amber-400">Connect your Vara wallet first.</p>
+              )}
+              {faucetMode === 'whitelist' && (
+                <p className="text-xs text-amber-400/80 bg-amber-500/5 rounded-lg px-3 py-2 border border-amber-500/10">
+                  Faucet is in whitelist mode. Only whitelisted addresses can mint.
+                </p>
               )}
             </div>
           )}
@@ -487,6 +557,75 @@ export default function GrowTokenPage() {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'admin' && isAdmin && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="font-semibold mb-1 flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-amber-400" /> Admin Panel
+                </h3>
+                <p className="text-sm text-provn-muted">
+                  Manage faucet access and whitelist. Only visible to the token admin.
+                </p>
+              </div>
+
+              <div className="bg-provn-bg/50 rounded-lg p-4 border border-provn-border/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-medium">Faucet Mode</h4>
+                    <p className="text-xs text-provn-muted mt-0.5">
+                      {faucetMode === 'public'
+                        ? 'Anyone can mint from the faucet (rate limited)'
+                        : 'Only whitelisted addresses can mint'}
+                    </p>
+                  </div>
+                  <button onClick={handleToggleFaucetMode}
+                    className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors border ${
+                      faucetMode === 'public'
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                        : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                    }`}>
+                    {faucetMode === 'public' ? 'Public' : 'Whitelist Only'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-provn-bg/50 rounded-lg p-4 border border-provn-border/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium">Whitelist ({whitelist.length} addresses)</h4>
+                  <button onClick={loadAdminData} className="text-xs text-provn-muted hover:text-provn-text transition-colors">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="flex gap-2">
+                  <input value={newWhitelistAddr} onChange={e => setNewWhitelistAddr(e.target.value)}
+                    placeholder="0x... address to whitelist"
+                    className="flex-1 px-3 py-2 bg-provn-bg border border-provn-border rounded-lg text-sm font-mono focus:border-amber-500/50 focus:outline-none" />
+                  <button onClick={handleAddWhitelist} disabled={!newWhitelistAddr}
+                    className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-sm font-medium transition-colors flex items-center gap-1.5">
+                    <UserPlus className="w-3.5 h-3.5" /> Add
+                  </button>
+                </div>
+
+                {whitelist.length > 0 ? (
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {whitelist.map(addr => (
+                      <div key={addr} className="flex items-center justify-between bg-provn-bg rounded-lg px-3 py-2">
+                        <span className="font-mono text-xs text-provn-muted truncate flex-1 mr-2">{addr}</span>
+                        <button onClick={() => handleRemoveWhitelist(addr)}
+                          className="p-1 rounded hover:bg-red-500/10 text-provn-muted hover:text-red-400 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-provn-muted text-center py-2">No addresses whitelisted yet</p>
+                )}
               </div>
             </div>
           )}
