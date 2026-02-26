@@ -13,6 +13,9 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 
 const PixelBlast = dynamic(() => import('@/components/ui/PixelBlast'), { ssr: false });
+const RisingLines = dynamic(() => import('@/components/ui/RisingLines'), { ssr: false });
+
+const comingSoonRoutes = ['/app/splits', '/app/bounties', '/app/identity', '/app/permissions'];
 
 const navItems = [
   { href: '/app', label: 'Dashboard', icon: LayoutDashboard },
@@ -35,26 +38,43 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { account, logout } = useAccount();
   const { isApiReady } = useApi();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isComingSoon = comingSoonRoutes.some(r => pathname.startsWith(r));
 
   return (
     <div className="flex h-screen bg-provn-bg text-provn-text overflow-hidden relative">
       <div className="fixed inset-0 z-0 pointer-events-none opacity-40">
-        <PixelBlast
-          variant="square"
-          pixelSize={4}
-          color="#10b981"
-          patternScale={2}
-          patternDensity={1}
-          pixelSizeJitter={0}
-          enableRipples
-          rippleSpeed={0.4}
-          rippleThickness={0.12}
-          rippleIntensityScale={1.5}
-          speed={0.3}
-          edgeFade={0.25}
-          transparent
-          globalMouseTracking
-        />
+        {isComingSoon ? (
+          <RisingLines
+            color="#10b981"
+            horizonColor="#10b981"
+            haloColor="#34d399"
+            riseSpeed={0.08}
+            flowSpeed={0.15}
+            riseIntensity={0.6}
+            flowIntensity={0.4}
+            haloIntensity={5.0}
+            brightness={0.8}
+            horizonHeight={-0.5}
+            circleScale={0.3}
+          />
+        ) : (
+          <PixelBlast
+            variant="square"
+            pixelSize={4}
+            color="#10b981"
+            patternScale={2}
+            patternDensity={1}
+            pixelSizeJitter={0}
+            enableRipples
+            rippleSpeed={0.4}
+            rippleThickness={0.12}
+            rippleIntensityScale={1.5}
+            speed={0.3}
+            edgeFade={0.25}
+            transparent
+            globalMouseTracking
+          />
+        )}
       </div>
       {sidebarOpen && (
         <div
