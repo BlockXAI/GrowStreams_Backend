@@ -542,12 +542,19 @@ const PixelBlast: React.FC<PixelBlastProps> = ({
       renderer.domElement.addEventListener('pointermove', onPointerMove, {
         passive: true
       });
+      let lastRippleTime = 0;
       const onDocumentMove = (e: PointerEvent) => {
-        if (!touch) return;
+        const now = performance.now();
+        if (now - lastRippleTime < 300) return;
+        lastRippleTime = now;
         const rect = renderer.domElement.getBoundingClientRect();
-        const nx = (e.clientX - rect.left) / rect.width;
-        const ny = 1 - (e.clientY - rect.top) / rect.height;
-        if (nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1) touch.addTouch({ x: nx, y: ny });
+        const fx = (e.clientX - rect.left) * (renderer.domElement.width / rect.width);
+        const fy = (rect.height - (e.clientY - rect.top)) * (renderer.domElement.height / rect.height);
+        if (fx < 0 || fy < 0 || fx > renderer.domElement.width || fy > renderer.domElement.height) return;
+        const ix = threeRef.current?.clickIx ?? 0;
+        (uniforms.uClickPos.value as THREE.Vector2[])[ix].set(fx, fy);
+        (uniforms.uClickTimes.value as Float32Array)[ix] = uniforms.uTime.value as number;
+        if (threeRef.current) threeRef.current.clickIx = (ix + 1) % MAX_CLICKS;
       };
       if (globalMouseTracking) {
         document.addEventListener('pointermove', onDocumentMove, { passive: true });

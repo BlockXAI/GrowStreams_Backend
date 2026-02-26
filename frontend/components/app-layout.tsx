@@ -53,10 +53,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           speed={0.3}
           edgeFade={0.25}
           transparent
-          liquid
-          liquidStrength={0.06}
-          liquidRadius={1.2}
-          liquidWobbleSpeed={3.5}
           globalMouseTracking
         />
       </div>
