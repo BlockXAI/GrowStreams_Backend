@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAccount, useApi } from '@gear-js/react-hooks';
 import { Wallet as GearWallet } from '@gear-js/wallet-connect';
@@ -52,6 +53,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           speed={0.3}
           edgeFade={0.25}
           transparent
+          liquid
+          liquidStrength={0.06}
+          liquidRadius={1.2}
+          liquidWobbleSpeed={3.5}
+          globalMouseTracking
         />
       </div>
       {sidebarOpen && (
@@ -68,10 +74,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         <div className="p-5 border-b border-provn-border">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
-              <Waves className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-lg font-bold">GrowStreams</span>
+            <Image
+              src="/logo.png"
+              alt="GrowStreams"
+              width={130}
+              height={32}
+              className="h-8 w-auto"
+              priority
+            />
           </Link>
         </div>
 

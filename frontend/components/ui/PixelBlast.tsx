@@ -317,6 +317,7 @@ interface ThreeState {
   composer: EffectComposer | null;
   touch: ReturnType<typeof createTouchTexture> | null;
   liquidEffect: Effect | null;
+  onDocumentMove: ((e: PointerEvent) => void) | null;
 }
 
 export interface PixelBlastProps {
@@ -342,6 +343,7 @@ export interface PixelBlastProps {
   transparent?: boolean;
   edgeFade?: number;
   noiseAmount?: number;
+  globalMouseTracking?: boolean;
 }
 
 const PixelBlast: React.FC<PixelBlastProps> = ({
@@ -366,7 +368,8 @@ const PixelBlast: React.FC<PixelBlastProps> = ({
   speed = 0.5,
   transparent = true,
   edgeFade = 0.5,
-  noiseAmount = 0
+  noiseAmount = 0,
+  globalMouseTracking = false
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const visibilityRef = useRef({ visible: true });
@@ -539,6 +542,16 @@ const PixelBlast: React.FC<PixelBlastProps> = ({
       renderer.domElement.addEventListener('pointermove', onPointerMove, {
         passive: true
       });
+      const onDocumentMove = (e: PointerEvent) => {
+        if (!touch) return;
+        const rect = renderer.domElement.getBoundingClientRect();
+        const nx = (e.clientX - rect.left) / rect.width;
+        const ny = 1 - (e.clientY - rect.top) / rect.height;
+        if (nx >= 0 && nx <= 1 && ny >= 0 && ny <= 1) touch.addTouch({ x: nx, y: ny });
+      };
+      if (globalMouseTracking) {
+        document.addEventListener('pointermove', onDocumentMove, { passive: true });
+      }
       let raf = 0;
       const animate = () => {
         if (autoPauseOffscreen && !visibilityRef.current.visible) {
@@ -579,7 +592,8 @@ const PixelBlast: React.FC<PixelBlastProps> = ({
         timeOffset,
         composer,
         touch,
-        liquidEffect
+        liquidEffect,
+        onDocumentMove: globalMouseTracking ? onDocumentMove : null
       };
     } else if (threeRef.current) {
       const t = threeRef.current;
@@ -609,6 +623,7 @@ const PixelBlast: React.FC<PixelBlastProps> = ({
       if (threeRef.current && mustReinit) return;
       if (!threeRef.current) return;
       const t = threeRef.current;
+      if (t.onDocumentMove) document.removeEventListener('pointermove', t.onDocumentMove);
       t.resizeObserver?.disconnect();
       cancelAnimationFrame(t.raf);
       t.quad?.geometry.dispose();
@@ -638,7 +653,8 @@ const PixelBlast: React.FC<PixelBlastProps> = ({
     autoPauseOffscreen,
     variant,
     color,
-    speed
+    speed,
+    globalMouseTracking
   ]);
 
   return (
