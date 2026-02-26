@@ -32,9 +32,27 @@ function formatTokenAmount(raw: string | number, token?: string): string {
   const n = Number(raw);
   if (isNaN(n) || n === 0) return '0';
   const symbol = token === ZERO_TOKEN ? 'VARA' : 'GROW';
-  if (n >= 1e12) return (n / 1e12).toFixed(4) + ' ' + symbol;
-  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M units';
-  return n.toLocaleString() + ' units';
+  const g = n / 1e12;
+  if (g >= 1_000_000) return g.toLocaleString(undefined, { maximumFractionDigits: 0 }) + ' ' + symbol;
+  if (g >= 1) return g.toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' ' + symbol;
+  if (g >= 0.000001) return g.toFixed(6) + ' ' + symbol;
+  return '< 0.000001 ' + symbol;
+}
+
+function formatFlowRate(raw: string | number, token?: string): string {
+  const n = Number(raw);
+  if (isNaN(n) || n === 0) return '0/s';
+  const symbol = token === ZERO_TOKEN ? 'VARA' : 'GROW';
+  const g = n / 1e12;
+  if (g >= 1) return g.toFixed(2) + ' ' + symbol + '/s';
+  if (g >= 0.001) return g.toFixed(4) + ' ' + symbol + '/s';
+  if (g >= 0.000001) return g.toFixed(6) + ' ' + symbol + '/s';
+  return '< 0.000001 ' + symbol + '/s';
+}
+
+function isDepleted(s: StreamData, nowSec: number): boolean {
+  const rt = computeRealtime(s, nowSec);
+  return s.status === 'Active' && rt.remaining <= 0 && Number(s.deposited) > 0;
 }
 
 function formatVaraPrecise(raw: number): string {
@@ -84,10 +102,11 @@ function computeRealtime(s: StreamData, nowSec: number) {
   const timeToDepletion = flowRate > 0 && s.status === 'Active'
     ? remaining / flowRate : Infinity;
   const bufferThreshold = flowRate * MIN_BUFFER_SECONDS;
-  const isCritical = s.status === 'Active' && remaining < bufferThreshold && flowRate > 0;
+  const isDep = deposited > 0 && remaining <= 0;
+  const isCritical = s.status === 'Active' && remaining < bufferThreshold && flowRate > 0 && !isDep;
   const progress = deposited > 0 ? (totalStreamed / deposited) * 100 : 0;
 
-  return { totalStreamed, remaining, withdrawable, timeToDepletion, isCritical, progress };
+  return { totalStreamed, remaining, withdrawable, timeToDepletion, isCritical, isDepleted: isDep, progress };
 }
 
 function StreamCard({
@@ -107,7 +126,7 @@ function StreamCard({
 
   return (
     <div className={`bg-provn-surface border rounded-xl p-5 transition-colors ${
-      rt.isCritical ? 'border-red-500/50 shadow-red-500/5 shadow-lg' : 'border-provn-border'
+      rt.isDepleted ? 'border-provn-border/50 opacity-70' : rt.isCritical ? 'border-red-500/50 shadow-red-500/5 shadow-lg' : 'border-provn-border'
     }`}>
       {rt.isCritical && (
         <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
@@ -124,8 +143,8 @@ function StreamCard({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold">#{s.id}</span>
-            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(s.status)}`}>
-              {s.status}
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${rt.isDepleted ? 'text-provn-muted bg-provn-border/30' : statusColor(s.status)}`}>
+              {rt.isDepleted ? 'Depleted' : s.status}
             </span>
           </div>
           <div className="flex gap-1">
@@ -174,8 +193,7 @@ function StreamCard({
             </span>
           </div>
           <p className="text-xl font-bold text-emerald-400 font-mono tabular-nums">
-            {formatVaraPrecise(rt.totalStreamed)}
-            {rt.totalStreamed >= 1e12 && <span className="text-sm ml-1 text-emerald-400/60">{s.token === ZERO_TOKEN ? 'VARA' : 'GROW'}</span>}
+            {formatTokenAmount(rt.totalStreamed, s.token)}
           </p>
           <div className="mt-2 h-1.5 bg-provn-border/50 rounded-full overflow-hidden">
             <div
@@ -199,7 +217,7 @@ function StreamCard({
         </div>
         <div>
           <span className="text-provn-muted flex items-center gap-1"><Zap className="w-3 h-3" /> Flow Rate</span>
-          <p className="font-mono mt-0.5">{formatTokenAmount(s.flow_rate, s.token)}/s</p>
+          <p className="font-mono mt-0.5">{formatFlowRate(s.flow_rate, s.token)}</p>
         </div>
         <div>
           <span className="text-provn-muted flex items-center gap-1"><Clock className="w-3 h-3" /> Time Left</span>
@@ -231,7 +249,7 @@ function StreamCard({
           <input
             value={depositAmounts[s.id] || ''}
             onChange={e => setDepositAmounts(prev => ({ ...prev, [s.id]: e.target.value }))}
-            type="number" placeholder="Top up deposit (units)"
+            type="number" step="any" placeholder="Amount (GROW)"
             className="flex-1 px-3 py-1.5 bg-provn-bg border border-provn-border rounded-lg text-xs focus:border-emerald-500/50 focus:outline-none"
           />
           <button onClick={() => onAction(s.id, 'deposit')} disabled={busy === s.id}
@@ -280,7 +298,9 @@ export default function StreamsPage() {
       const details = await Promise.all(
         allIds.slice(0, 30).map(id => api.streams.get(Number(id)).catch(() => null))
       );
-      setStreams(details.filter(Boolean) as StreamData[]);
+      const valid = details.filter(Boolean) as StreamData[];
+      valid.sort((a, b) => b.id - a.id);
+      setStreams(valid);
     } catch (err) {
       console.error(err);
     } finally {
@@ -291,11 +311,12 @@ export default function StreamsPage() {
   useEffect(() => { loadStreams(); }, [account]);
 
   const accountHex = account?.decodedAddress?.toLowerCase() || '';
-  const outflowRate = streams
-    .filter(s => s.status === 'Active' && s.sender?.toLowerCase() === accountHex)
+  const activeStreams = streams.filter(s => s.status === 'Active' && !isDepleted(s, nowSec));
+  const outflowRate = activeStreams
+    .filter(s => s.sender?.toLowerCase() === accountHex)
     .reduce((sum, s) => sum + Number(s.flow_rate), 0);
-  const inflowRate = streams
-    .filter(s => s.status === 'Active' && s.receiver?.toLowerCase() === accountHex)
+  const inflowRate = activeStreams
+    .filter(s => s.receiver?.toLowerCase() === accountHex)
     .reduce((sum, s) => sum + Number(s.flow_rate), 0);
   const netFlow = inflowRate - outflowRate;
 
@@ -382,14 +403,14 @@ export default function StreamsPage() {
               <TrendingDown className="w-4 h-4 text-red-400" />
               <span className="text-xs text-provn-muted">Outflow</span>
             </div>
-            <p className="text-lg font-bold text-red-400 font-mono">-{formatTokenAmount(outflowRate)}/s</p>
+            <p className="text-lg font-bold text-red-400 font-mono">-{formatFlowRate(outflowRate)}</p>
           </div>
           <div className="bg-provn-surface border border-provn-border rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1">
               <TrendingUp className="w-4 h-4 text-emerald-400" />
               <span className="text-xs text-provn-muted">Inflow</span>
             </div>
-            <p className="text-lg font-bold text-emerald-400 font-mono">+{formatTokenAmount(inflowRate)}/s</p>
+            <p className="text-lg font-bold text-emerald-400 font-mono">+{formatFlowRate(inflowRate)}</p>
           </div>
           <div className="bg-provn-surface border border-provn-border rounded-xl p-4">
             <div className="flex items-center gap-2 mb-1">
@@ -397,7 +418,7 @@ export default function StreamsPage() {
               <span className="text-xs text-provn-muted">Net Flow</span>
             </div>
             <p className={`text-lg font-bold font-mono ${netFlow >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {netFlow >= 0 ? '+' : ''}{formatTokenAmount(netFlow)}/s
+              {netFlow >= 0 ? '+' : ''}{formatFlowRate(Math.abs(netFlow))}
             </p>
           </div>
         </div>
