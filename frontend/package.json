@@ -45,6 +45,10 @@
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.183.1"
   },
+  "overrides": {
+    "@polkadot/util": "13.3.1",
+    "@polkadot/util-crypto": "13.3.1"
+  },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
