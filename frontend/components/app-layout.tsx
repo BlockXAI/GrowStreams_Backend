@@ -18,10 +18,10 @@ const navItems = [
   { href: '/app/streams', label: 'Streams', icon: Waves },
   { href: '/app/grow', label: 'GROW Token', icon: Coins },
   { href: '/app/vault', label: 'Vault', icon: Vault },
-  { href: '/app/splits', label: 'Splits', icon: GitFork },
-  { href: '/app/bounties', label: 'Bounties', icon: Trophy },
-  { href: '/app/identity', label: 'Identity', icon: Fingerprint },
-  { href: '/app/permissions', label: 'Permissions', icon: Shield },
+  { href: '/app/splits', label: 'Splits', icon: GitFork, soon: true },
+  { href: '/app/bounties', label: 'Bounties', icon: Trophy, soon: true },
+  { href: '/app/identity', label: 'Identity', icon: Fingerprint, soon: true },
+  { href: '/app/permissions', label: 'Permissions', icon: Shield, soon: true },
 ];
 
 function shortenAddress(addr: string) {
@@ -76,7 +76,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.map(({ href, label, icon: Icon }) => {
+          {navItems.map(({ href, label, icon: Icon, soon }) => {
             const active = pathname === href || (href !== '/app' && pathname.startsWith(href));
             return (
               <Link
@@ -86,11 +86,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   active
                     ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    : soon
+                    ? 'text-provn-muted/50 hover:text-provn-muted hover:bg-provn-border/20'
                     : 'text-provn-muted hover:text-provn-text hover:bg-provn-border/30'
                 }`}
               >
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                {label}
+                <Icon className={`w-4 h-4 flex-shrink-0 ${soon ? 'opacity-50' : ''}`} />
+                <span className="flex-1">{label}</span>
+                {soon && (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-provn-border/40 text-provn-muted/70">Soon</span>
+                )}
               </Link>
             );
           })}
