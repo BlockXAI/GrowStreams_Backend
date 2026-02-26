@@ -110,7 +110,7 @@ function computeRealtime(s: StreamData, nowSec: number) {
 }
 
 function StreamCard({
-  s, account, busy, onAction, depositAmounts, setDepositAmounts, nowSec,
+  s, account, busy, onAction, depositAmounts, setDepositAmounts, nowSec, streamName, onNameChange,
 }: {
   s: StreamData;
   account: string;
@@ -119,6 +119,8 @@ function StreamCard({
   depositAmounts: Record<number, string>;
   setDepositAmounts: React.Dispatch<React.SetStateAction<Record<number, string>>>;
   nowSec: number;
+  streamName?: string;
+  onNameChange?: (id: number, name: string) => void;
 }) {
   const rt = computeRealtime(s, nowSec);
   const isSender = s.sender?.toLowerCase() === account?.toLowerCase();
@@ -143,6 +145,12 @@ function StreamCard({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold">#{s.id}</span>
+            {streamName ? (
+              <span className="text-xs text-provn-muted font-medium truncate max-w-[120px]" title={streamName}>{streamName}</span>
+            ) : onNameChange ? (
+              <button onClick={() => { const n = prompt('Name this stream (optional):'); if (n) onNameChange(s.id, n); }}
+                className="text-[10px] text-provn-muted/50 hover:text-provn-muted transition-colors">+ name</button>
+            ) : null}
             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${rt.isDepleted ? 'text-provn-muted bg-provn-border/30' : statusColor(s.status)}`}>
               {rt.isDepleted ? 'Depleted' : s.status}
             </span>
@@ -277,6 +285,21 @@ export default function StreamsPage() {
   const [deposit, setDeposit] = useState('');
   const [depositAmounts, setDepositAmounts] = useState<Record<number, string>>({});
   const [useGrow, setUseGrow] = useState(true);
+  const [streamName, setStreamName] = useState('');
+  const [streamNames, setStreamNames] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('growstreams_names');
+      if (saved) setStreamNames(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  const saveStreamName = (id: number, name: string) => {
+    const updated = { ...streamNames, [id]: name };
+    setStreamNames(updated);
+    try { localStorage.setItem('growstreams_names', JSON.stringify(updated)); } catch {}
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -332,8 +355,13 @@ export default function StreamsPage() {
       }
       await actions.createStream(receiver, useGrow ? GROW_TOKEN : ZERO_TOKEN, baseFlowRate, baseDeposit);
       toast.success('Stream created!');
+      if (streamName) {
+        const total = await api.streams.total().catch(() => ({ total: '0' }));
+        const newId = Number(total.total);
+        if (newId > 0) saveStreamName(newId, streamName);
+      }
       setShowCreate(false);
-      setReceiver(''); setFlowRate(''); setDeposit('');
+      setReceiver(''); setFlowRate(''); setDeposit(''); setStreamName('');
       setTimeout(loadStreams, 3000);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Failed');
@@ -452,6 +480,14 @@ export default function StreamsPage() {
             </p>
           )}
           <div>
+            <label className="block text-xs text-provn-muted mb-1">Stream Name (optional)</label>
+            <input
+              value={streamName} onChange={e => setStreamName(e.target.value)}
+              className="w-full px-3 py-2 bg-provn-bg border border-provn-border rounded-lg text-sm focus:border-emerald-500/50 focus:outline-none"
+              placeholder="e.g. Salary to Alice, Dev bounty payout"
+            />
+          </div>
+          <div>
             <label className="block text-xs text-provn-muted mb-1">Receiver Address</label>
             <input
               value={receiver} onChange={e => setReceiver(e.target.value)} required
@@ -564,6 +600,8 @@ export default function StreamsPage() {
               depositAmounts={depositAmounts}
               setDepositAmounts={setDepositAmounts}
               nowSec={nowSec}
+              streamName={streamNames[s.id]}
+              onNameChange={saveStreamName}
             />
           ))}
         </div>
