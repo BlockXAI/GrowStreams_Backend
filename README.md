@@ -1,8 +1,20 @@
-# GrowStreams — Money Streaming Protocol on Vara
+# 🌊 GrowStreams — Money Streaming Protocol on Vara
 
 > **Stream tokens by the second to any address on Vara Network.**
 
 GrowStreams is a real-time money streaming protocol built on [Vara Network](https://vara.network). It enables continuous, per-second token flows for payroll, subscriptions, grants, revenue sharing, and any programmable payment use case.
+
+## ⚡ New: GrowStreams Campaign System
+
+**Earn XP and USDC rewards for contributing to GrowStreams!**
+
+- 🛠️ **OSS Track**: Submit GitHub PRs, earn XP + daily accumulation + merge bonuses
+- 📱 **Content Track**: Create quality Twitter content about GrowStreams
+- 🤖 **AI-Powered Scoring**: GPT-4o-mini evaluates all contributions (0-100 scale)
+- 🏆 **Leaderboard**: Real-time rankings with estimated USDC payouts
+- 💰 **Automated Payouts**: Fair distribution based on total XP earned
+
+[**Join the Campaign →**](https://growstreams.app/campaign)
 
 ## Live
 
@@ -121,6 +133,38 @@ See [TESTING-GUIDE.md](frontend/TESTING-GUIDE.md) for detailed step-by-step inst
 | `/api/vault/deposit-native` | POST | Deposit VARA `{ amount }` |
 | `/api/vault/withdraw-native` | POST | Withdraw VARA `{ amount }` |
 
+### Campaign & Leaderboard
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/campaign/register` | POST | Register for campaign `{ wallet, github_handle?, x_handle?, track }` |
+| `/api/campaign/participant/:wallet` | GET | Get participant stats with XP history |
+| `/api/campaign/config` | GET | Campaign configuration (dates, XP tiers, pool) |
+| `/api/campaign/payout-snapshot` | POST | Generate payout table (admin, requires Bearer token) |
+| `/api/leaderboard` | GET | Paginated leaderboard `?page=1&limit=50&track=OSS` |
+| `/api/leaderboard/stats` | GET | Aggregate campaign statistics |
+| `/api/leaderboard/:wallet` | GET | Individual participant stats |
+| `/api/webhooks/github` | POST | GitHub webhook endpoint (HMAC verified) |
+
+**Campaign Tracks:**
+- `OSS`: GitHub PR contributions (requires `github_handle`)
+- `CONTENT`: Twitter/X content (requires `x_handle`)
+- `BOTH`: Participate in both tracks
+
+**XP Tiers (OSS):**
+- Score 70-79: 700 XP initial + 100 XP/day
+- Score 80-89: 1200 XP initial + 150 XP/day
+- Score 90-100: 2000 XP initial + 200 XP/day
+- Merge bonus: +500 XP
+
+**XP Tiers (Content):**
+- Score 70-79: 500 XP
+- Score 80-89: 800 XP
+- Score 90-100: 1200 XP
+- Thread bonus: +30% for 5+ tweet threads
+- Viral bonus: +800 XP at 500+ engagements
+- Reshare bonus: +500 XP if @VaraNetwork retweets
+
 ### Other Contracts
 
 | Endpoint | Description |
@@ -178,6 +222,44 @@ curl $API/api/streams/1
 
 ---
 
+## 🎯 Campaign System Features
+
+### AI-Powered Contribution Scoring
+
+**GitHub PRs (OSS Track):**
+- 5-factor LLM evaluation: correctness, test coverage, code quality, issue relevance, completeness
+- Anti-gaming: rejects trivial PRs (<5 meaningful lines changed)
+- Automatic re-scoring on new commits
+- CI status integration
+- Merge bonus: +500 XP when PR is merged
+- Daily accumulation for 14 days (100-200 XP/day based on score tier)
+
+**Twitter/X Content (Content Track):**
+- 5-factor LLM evaluation: quality, relevance, originality, educational value, engagement
+- Anti-gaming: rejects low-effort mentions (<20 chars)
+- Engagement velocity scoring (likes + retweets + replies / follower count)
+- Thread detection with +30% bonus for 5+ tweet threads
+- Viral bonus: +800 XP at 500+ engagements
+- Reshare bonus: +500 XP if @VaraNetwork retweets
+- Re-evaluation at 6h and 24h for engagement bonuses
+
+### Automation & Background Jobs
+
+**Cron Schedules (UTC):**
+- `0 0 * * *` — Daily XP accumulation for active OSS contributions
+- `5 0 * * *` — Leaderboard snapshot (captures daily ranks for "rank change" arrows)
+- `0 */6 * * *` — X/Twitter re-evaluation (checks viral/reshare bonuses)
+
+### Security & Anti-Gaming
+
+- **Rate limiting**: 5 registrations per IP per minute
+- **HMAC-SHA256 verification**: GitHub webhooks cryptographically verified
+- **Campaign window gating**: contributions outside campaign dates are rejected
+- **Duplicate prevention**: unique constraints on (track, external_id)
+- **XP idempotency**: one-time bonuses can't be awarded twice
+- **Admin-only endpoints**: payout snapshot requires Bearer token
+- **Trivial contribution rejection**: GitHub PRs <5 lines, tweets <20 chars
+
 ## Project Structure
 
 ```
@@ -191,12 +273,16 @@ growstreams/
 │   ├── adapters/bounty-adapter/ # AI-scored bounty streams
 │   └── identity-registry/       # GitHub identity binding
 ├── api/                         # REST API (Express + sails-js)
-│   ├── src/routes/              # Route handlers for all 7 contracts
+│   ├── src/
+│   │   ├── routes/              # Route handlers (streams, vault, campaign, leaderboard, webhooks)
+│   │   ├── services/            # Business logic (XP, LLM scorer, GitHub agent, X agent)
+│   │   ├── cron/                # Scheduled jobs (daily XP, snapshots, re-evaluation)
+│   │   └── sails-client.mjs     # Vara blockchain client
 │   ├── idl/                     # Contract IDL files
 │   └── deploy-state.json        # Deployed program IDs
 ├── frontend/                    # Next.js 15 frontend
-│   ├── app/app/                 # App pages (dashboard, grow, streams, vault)
-│   ├── hooks/useGrowStreams.ts   # Contract interaction hooks
+│   ├── app/app/                 # App pages (dashboard, grow, streams, vault, campaign)
+│   ├── hooks/useGrowStreams.ts  # Contract interaction hooks
 │   ├── lib/growstreams-api.ts   # API client
 │   └── TESTING-GUIDE.md         # Step-by-step testing guide
 ├── sdk/                         # TypeScript SDK
@@ -255,9 +341,94 @@ node e2e-test.mjs          # Full protocol test (53 tests)
 | Smart Contracts | Rust + Gear Sails 0.6 (WASM actors) |
 | Token Standard | VFT (Vara Fungible Token) |
 | Backend API | Express.js + sails-js + Railway |
+| Campaign Database | Supabase (PostgreSQL) |
+| AI Scoring | OpenAI GPT-4o-mini |
+| GitHub Integration | Octokit + Webhooks (HMAC-SHA256) |
+| Twitter Integration | Twitter API v2 (Filtered Stream) |
+| Cron Jobs | node-cron (UTC timezone) |
 | Frontend | Next.js 15 + React 19 + TailwindCSS + Vercel |
 | Wallet | SubWallet / Polkadot.js / @gear-js/wallet-connect |
 | Blockchain | Vara Network (Polkadot ecosystem) |
+
+---
+
+## 🗄️ Campaign Database Schema
+
+**Tables:**
+- `participants` — campaign registrations (wallet, handles, track, total_xp)
+- `contributions` — OSS PRs + X posts (track, score, status, XP awarded)
+- `xp_events` — all XP transactions (wallet, delta, reason, contribution_id)
+- `daily_snapshots` — leaderboard history (wallet, rank, XP per day)
+
+**Key Features:**
+- Unique constraints prevent duplicate contributions
+- XP idempotency for one-time bonuses
+- 14-day accumulation cap via `max_daily_until`
+- Rank change tracking via daily snapshots
+
+See `.env.example` for Supabase connection configuration.
+
+---
+
+## 🚀 Campaign Quick Start
+
+### For Participants
+
+**OSS Track:**
+1. Register at `POST /api/campaign/register` with your wallet + GitHub handle
+2. Submit PRs to `BlockXAI/GrowStreams_Backend`
+3. AI scores your PR (0-100) and awards initial XP
+4. Earn daily XP for 14 days if score ≥70
+5. Get +500 XP merge bonus when PR is merged
+
+**Content Track:**
+1. Register at `POST /api/campaign/register` with your wallet + X handle
+2. Post tweets mentioning `@GrowStreams` or `#GrowStreams`
+3. AI scores your content + engagement velocity
+4. Earn XP immediately if score ≥70
+5. Get bonuses for viral performance + @VaraNetwork retweets
+
+**Check Your Stats:**
+```bash
+curl https://growstreams-core-production.up.railway.app/api/leaderboard/:your_wallet
+```
+
+### For Admins
+
+**Setup Campaign:**
+1. Create Supabase project + run table creation SQL
+2. Set all environment variables (30 total, see `.env.example`)
+3. Register GitHub App + set webhook to `/api/webhooks/github`
+4. Get Twitter API credentials (Basic tier minimum)
+5. Deploy to Railway (cron jobs start automatically)
+
+**Generate Payout Snapshot:**
+```bash
+curl -X POST https://growstreams-core-production.up.railway.app/api/campaign/payout-snapshot \
+  -H "Authorization: Bearer YOUR_ADMIN_SECRET"
+```
+
+---
+
+## 📊 Campaign Metrics & Monitoring
+
+**Real-Time Stats:**
+- Total participants
+- Total XP earned across all tracks
+- OSS vs Content contribution breakdown
+- Top contributor
+- Days remaining in campaign
+- USDC pool allocation
+
+**Access at:** `GET /api/leaderboard/stats`
+
+**Logs to Monitor:**
+- `[github-agent]` — PR webhook processing
+- `[x-agent]` — Tweet stream processing
+- `[daily-xp]` — Daily accumulation runs
+- `[snapshot]` — Leaderboard snapshot runs
+- `[x-reeval]` — Tweet re-evaluation runs
+- `[xp]` — All XP award events
 
 ---
 
@@ -268,3 +439,5 @@ MIT
 ---
 
 **Built by the GrowStreams team — real-time money streaming on Vara Network.**
+
+🌊 **Stream it. Earn it. Own it.**
