@@ -15,6 +15,9 @@ import permissionsRouter from './routes/permissions.mjs';
 import bountyRouter from './routes/bounty.mjs';
 import identityRouter from './routes/identity.mjs';
 import growTokenRouter from './routes/grow-token.mjs';
+import campaignRouter from './routes/campaign.mjs';
+import webhooksRouter from './routes/webhooks.mjs';
+import { startStream as startXStream } from './services/x-agent.mjs';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,6 +25,10 @@ const PORT = process.env.PORT || 3000;
 app.use(helmet());
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(morgan('short'));
+
+// Raw body parser for GitHub webhook HMAC verification (MUST be before express.json())
+app.use('/api/webhooks/github', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 
 app.use('/health', healthRouter);
@@ -32,6 +39,8 @@ app.use('/api/permissions', permissionsRouter);
 app.use('/api/bounty', bountyRouter);
 app.use('/api/identity', identityRouter);
 app.use('/api/grow-token', growTokenRouter);
+app.use('/api/campaign', campaignRouter);
+app.use('/api/webhooks', webhooksRouter);
 
 app.get('/', (req, res) => {
   res.json({
@@ -120,6 +129,15 @@ app.get('/', (req, res) => {
         revoke: 'POST /api/identity/revoke { actorId, mode? }',
         updateScore: 'POST /api/identity/update-score { actorId, newScore, mode? }',
       },
+      campaign: {
+        register: 'POST /api/campaign/register { wallet, github_handle?, x_handle?, track }',
+        participant: 'GET /api/campaign/participant/:wallet',
+        config: 'GET /api/campaign/config',
+        payoutSnapshot: 'POST /api/campaign/payout-snapshot (admin, Bearer token)',
+      },
+      webhooks: {
+        github: 'POST /api/webhooks/github (GitHub webhook endpoint, HMAC verified)',
+      },
       _note: 'POST routes accept { mode: "payload" } to return encoded payload for client-side wallet signing instead of server-side execution.',
     },
   });
@@ -135,9 +153,16 @@ app.use((err, req, res, next) => {
 async function start() {
   try {
     await connect();
-    app.listen(PORT, '0.0.0.0', () => {
+    app.listen(PORT, '0.0.0.0', async () => {
       console.log(`[api] GrowStreams V2 API listening on port ${PORT}`);
       console.log(`[api] http://localhost:${PORT}`);
+
+      // Start X/Twitter filtered stream (non-blocking, server runs even if this fails)
+      try {
+        await startXStream();
+      } catch (err) {
+        console.warn(`[x-agent] Failed to start: ${err.message}`);
+      }
     });
   } catch (err) {
     console.error('[fatal]', err.message);
