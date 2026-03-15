@@ -17,7 +17,9 @@ import identityRouter from './routes/identity.mjs';
 import growTokenRouter from './routes/grow-token.mjs';
 import campaignRouter from './routes/campaign.mjs';
 import webhooksRouter from './routes/webhooks.mjs';
+import leaderboardRouter from './routes/leaderboard.mjs';
 import { startStream as startXStream } from './services/x-agent.mjs';
+import { initCrons } from './cron/index.mjs';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,6 +43,7 @@ app.use('/api/identity', identityRouter);
 app.use('/api/grow-token', growTokenRouter);
 app.use('/api/campaign', campaignRouter);
 app.use('/api/webhooks', webhooksRouter);
+app.use('/api/leaderboard', leaderboardRouter);
 
 app.get('/', (req, res) => {
   res.json({
@@ -138,6 +141,11 @@ app.get('/', (req, res) => {
       webhooks: {
         github: 'POST /api/webhooks/github (GitHub webhook endpoint, HMAC verified)',
       },
+      leaderboard: {
+        list: 'GET /api/leaderboard?page=&limit=&track=',
+        stats: 'GET /api/leaderboard/stats',
+        participant: 'GET /api/leaderboard/:wallet',
+      },
       _note: 'POST routes accept { mode: "payload" } to return encoded payload for client-side wallet signing instead of server-side execution.',
     },
   });
@@ -156,6 +164,13 @@ async function start() {
     app.listen(PORT, '0.0.0.0', async () => {
       console.log(`[api] GrowStreams V2 API listening on port ${PORT}`);
       console.log(`[api] http://localhost:${PORT}`);
+
+      // Start campaign cron jobs
+      try {
+        initCrons();
+      } catch (err) {
+        console.warn(`[cron] Failed to initialize: ${err.message}`);
+      }
 
       // Start X/Twitter filtered stream (non-blocking, server runs even if this fails)
       try {

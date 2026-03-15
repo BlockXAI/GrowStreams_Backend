@@ -9,10 +9,47 @@ import {
 const router = Router();
 
 // ---------------------------------------------------------------------------
+// Simple in-memory rate limiter: max 5 registrations per IP per minute
+// ---------------------------------------------------------------------------
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX = 5;
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW) {
+    rateLimitMap.set(ip, { windowStart: now, count: 1 });
+    return true;
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
+
+// Periodically clean stale entries (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitMap) {
+    if (now - entry.windowStart > RATE_LIMIT_WINDOW * 2) {
+      rateLimitMap.delete(ip);
+    }
+  }
+}, 5 * 60 * 1000);
+
+// ---------------------------------------------------------------------------
 // POST /api/campaign/register
 // ---------------------------------------------------------------------------
 router.post('/register', async (req, res, next) => {
   try {
+    // Rate limit check
+    const clientIP = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    if (!checkRateLimit(clientIP)) {
+      return res.status(429).json({ error: 'Too many registration attempts. Try again in 1 minute.' });
+    }
+
     const { wallet, github_handle, x_handle, track } = req.body;
 
     if (!wallet) {

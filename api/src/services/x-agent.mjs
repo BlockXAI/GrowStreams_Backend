@@ -215,7 +215,13 @@ async function processTweet(tweet, authorUsername, authorMetrics) {
     return;
   }
 
-  // 3. Extract metrics
+  // 3. Anti-gaming: reject extremely short content
+  if (!tweetText || tweetText.trim().length < 20) {
+    console.log(`[x-agent] Tweet ${tweetId}: content too short (${tweetText?.length || 0} chars), skipping`);
+    return;
+  }
+
+  // 3b. Extract metrics
   const likes = tweet.public_metrics?.like_count || 0;
   const retweets = tweet.public_metrics?.retweet_count || 0;
   const replies = tweet.public_metrics?.reply_count || 0;

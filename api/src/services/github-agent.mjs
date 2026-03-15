@@ -107,6 +107,31 @@ async function fetchCIStatus(sha) {
 }
 
 // ---------------------------------------------------------------------------
+// Count meaningful diff lines (excludes blank, comments, imports-only)
+// ---------------------------------------------------------------------------
+function countMeaningfulDiffLines(diff) {
+  if (!diff) return 0;
+  const lines = diff.split('\n');
+  let count = 0;
+  for (const line of lines) {
+    // Only count added/removed lines (start with + or -)
+    if (!line.startsWith('+') && !line.startsWith('-')) continue;
+    // Skip diff headers
+    if (line.startsWith('+++') || line.startsWith('---')) continue;
+    // Strip the +/- prefix
+    const content = line.slice(1).trim();
+    // Skip empty lines
+    if (!content) continue;
+    // Skip pure comment lines
+    if (content.startsWith('//') || content.startsWith('#') || content.startsWith('*') || content.startsWith('/*')) continue;
+    // Skip pure import/require lines
+    if (content.startsWith('import ') || content.startsWith('require(')) continue;
+    count++;
+  }
+  return count;
+}
+
+// ---------------------------------------------------------------------------
 // Post a comment on a PR
 // ---------------------------------------------------------------------------
 async function postComment(prNumber, body) {
@@ -275,6 +300,21 @@ export async function handlePROpened(payload) {
   }
 
   const diff = await fetchPRDiff(prNumber);
+
+  // Anti-gaming: reject trivially small PRs
+  const meaningfulLines = countMeaningfulDiffLines(diff);
+  if (meaningfulLines < 5) {
+    console.log(`[github-agent] PR #${prNumber}: only ${meaningfulLines} meaningful lines, flagging as trivial`);
+    await insertContribution(
+      participant.wallet, prNumber, 0, 0,
+      'REJECTED', `Trivial change: only ${meaningfulLines} meaningful lines changed.`, { trivial: true, meaningfulLines }
+    );
+    await postComment(prNumber,
+      `### 🤖 GrowStreams AI Review\n\n**Score: Below threshold**\n\nThis PR has fewer than 5 meaningful lines of change. Please submit more substantial contributions to earn XP.\n\n💡 Push more changes and it will be re-scored automatically.`
+    );
+    return;
+  }
+
   const issueBody = await fetchLinkedIssue(pr.body);
   const ciStatus = await fetchCIStatus(pr.head.sha);
 
