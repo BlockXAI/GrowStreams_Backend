@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["cd api && npm install"]
+
+[start]
+cmd = "cd api && node src/index.mjs"
