@@ -3,7 +3,7 @@ import { reevaluateTweet } from '../services/x-agent.mjs';
 
 /**
  * X/Twitter re-evaluation — checks engagement updates on recent tweets.
- * Runs every 6 hours: '0 */6 * * *'
+ * Runs every 6 hours: 0 star-slash-6 star star star (cron format)
  *
  * Queries CONTENT contributions that are:
  * - status = 'ACTIVE'
