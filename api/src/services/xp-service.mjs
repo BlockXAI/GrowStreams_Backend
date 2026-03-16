@@ -43,7 +43,7 @@ export async function awardXP(wallet, xpDelta, reason, contributionId = null) {
   // Award referral bonus to referrer (skip if this IS a referral bonus to avoid recursion)
   if (reason !== 'REFERRAL_BONUS' && xpDelta > 0) {
     try {
-      await awardReferralBonus(wallet, xpDelta, event?.id || null);
+      await awardReferralBonus(wallet, xpDelta, contributionId);
     } catch (refErr) {
       console.warn(`[xp] Referral bonus failed for ${wallet}: ${refErr.message}`);
     }
@@ -54,9 +54,10 @@ export async function awardXP(wallet, xpDelta, reason, contributionId = null) {
 
 /**
  * Award 5% referral bonus to a user's referrer.
- * Idempotent: only one referral bonus per source xp_event.
+ * Idempotent per contribution_id (valid FK to contributions table).
+ * For non-contribution XP, contribution_id is NULL.
  */
-async function awardReferralBonus(wallet, xpDelta, sourceEventId) {
+async function awardReferralBonus(wallet, xpDelta, contributionId) {
   // Look up the user and their referrer
   const user = await queryOne(
     `SELECT u.referred_by FROM users u
@@ -77,12 +78,12 @@ async function awardReferralBonus(wallet, xpDelta, sourceEventId) {
 
   const bonus = Math.max(1, Math.floor(xpDelta * REFERRAL_BONUS_PCT));
 
-  // Idempotency: check if we already gave a referral bonus for this source event
-  if (sourceEventId) {
+  // Idempotency: if contribution-based, check if bonus already given for this contribution
+  if (contributionId) {
     const existing = await queryOne(
       `SELECT id FROM xp_events
        WHERE wallet = $1 AND reason = 'REFERRAL_BONUS' AND contribution_id = $2 LIMIT 1`,
-      [referrer.wallet, sourceEventId]
+      [referrer.wallet, contributionId]
     );
     if (existing) return null;
   }
@@ -90,7 +91,7 @@ async function awardReferralBonus(wallet, xpDelta, sourceEventId) {
   const bonusEvent = await queryOne(
     `INSERT INTO xp_events (wallet, xp_delta, reason, contribution_id)
      VALUES ($1, $2, 'REFERRAL_BONUS', $3) RETURNING *`,
-    [referrer.wallet, bonus, sourceEventId]
+    [referrer.wallet, bonus, contributionId || null]
   );
 
   // Recalculate referrer total
