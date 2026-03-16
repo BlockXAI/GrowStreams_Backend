@@ -6,6 +6,7 @@ import {
   getParticipantStats,
   calculateAllPayouts,
 } from '../services/xp-service.mjs';
+import { createUser, getUserByWallet } from '../services/user-service.mjs';
 
 const router = Router();
 
@@ -51,7 +52,7 @@ router.post('/register', async (req, res, next) => {
       return res.status(429).json({ error: 'Too many registration attempts. Try again in 1 minute.' });
     }
 
-    const { wallet, github_handle, x_handle, track } = req.body;
+    const { wallet, github_handle, x_handle, track, referral_code } = req.body;
 
     if (!wallet) {
       return res.status(400).json({ error: 'Missing required field: wallet' });
@@ -69,14 +70,30 @@ router.post('/register', async (req, res, next) => {
       return res.status(400).json({ error: 'At least one handle (github or x) is required for BOTH track' });
     }
 
+    // Ensure the user exists (auto-create if needed)
+    let user = await getUserByWallet(wallet);
+    if (!user) {
+      try {
+        user = await createUser(wallet, github_handle, x_handle, referral_code || null);
+      } catch (userErr) {
+        if (userErr.status === 409) {
+          user = userErr.user; // already exists, reuse
+        } else if (userErr.status === 400) {
+          return res.status(400).json({ error: userErr.message });
+        } else {
+          throw userErr;
+        }
+      }
+    }
+
     const display_name = github_handle || x_handle || wallet.slice(0, 12);
 
     let data;
     try {
       data = await queryOne(
-        `INSERT INTO participants (wallet, github_handle, x_handle, display_name, track)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [wallet, github_handle || null, x_handle || null, display_name, track]
+        `INSERT INTO participants (wallet, github_handle, x_handle, display_name, track, user_id)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [wallet, github_handle || null, x_handle || null, display_name, track, user ? user.id : null]
       );
     } catch (dbErr) {
       if (dbErr.code === '23505') {
@@ -85,7 +102,7 @@ router.post('/register', async (req, res, next) => {
       throw dbErr;
     }
 
-    console.log(`[campaign] Registered ${wallet} (${track})`);
+    console.log(`[campaign] Registered ${wallet} (${track}) -> user ${user?.id || 'none'}`);
     res.status(201).json(data);
   } catch (err) { next(err); }
 });

@@ -58,6 +58,9 @@ export async function migrate() {
   console.log('[db] Running migrations...');
   const p = getPool();
 
+  // -----------------------------------------------------------------------
+  // Core tables (original)
+  // -----------------------------------------------------------------------
   await p.query(`
     CREATE TABLE IF NOT EXISTS participants (
       id            SERIAL PRIMARY KEY,
@@ -106,7 +109,52 @@ export async function migrate() {
       rank_at_snapshot  INTEGER NOT NULL DEFAULT 0,
       UNIQUE(snapshot_date, wallet)
     );
+  `);
 
+  // -----------------------------------------------------------------------
+  // User management tables (new)
+  // -----------------------------------------------------------------------
+  await p.query(`
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+    CREATE TABLE IF NOT EXISTS users (
+      id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      wallet         TEXT UNIQUE NOT NULL,
+      github_handle  TEXT,
+      x_handle       TEXT,
+      display_name   TEXT,
+      referral_code  TEXT UNIQUE NOT NULL,
+      referred_by    UUID REFERENCES users(id),
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS referrals (
+      id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      referrer_user_id UUID NOT NULL REFERENCES users(id),
+      referred_user_id UUID NOT NULL REFERENCES users(id),
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(referrer_user_id, referred_user_id)
+    );
+  `);
+
+  // Add user_id column to participants if it does not exist
+  await p.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'participants' AND column_name = 'user_id'
+      ) THEN
+        ALTER TABLE participants ADD COLUMN user_id UUID REFERENCES users(id);
+      END IF;
+    END $$;
+  `);
+
+  // -----------------------------------------------------------------------
+  // Indexes
+  // -----------------------------------------------------------------------
+  await p.query(`
     CREATE INDEX IF NOT EXISTS idx_contributions_wallet ON contributions(wallet);
     CREATE INDEX IF NOT EXISTS idx_contributions_track ON contributions(track);
     CREATE INDEX IF NOT EXISTS idx_contributions_status ON contributions(status);
@@ -121,6 +169,12 @@ export async function migrate() {
     CREATE INDEX IF NOT EXISTS idx_participants_total_xp ON participants(total_xp);
     CREATE INDEX IF NOT EXISTS idx_participants_github ON participants(github_handle);
     CREATE INDEX IF NOT EXISTS idx_participants_x ON participants(x_handle);
+    CREATE INDEX IF NOT EXISTS idx_users_wallet ON users(wallet);
+    CREATE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code);
+    CREATE INDEX IF NOT EXISTS idx_users_referred_by ON users(referred_by);
+    CREATE INDEX IF NOT EXISTS idx_participants_user_id ON participants(user_id);
+    CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_user_id);
+    CREATE INDEX IF NOT EXISTS idx_referrals_referred ON referrals(referred_user_id);
   `);
 
   console.log('[db] Migrations complete');

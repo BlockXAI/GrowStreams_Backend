@@ -19,6 +19,7 @@ import growTokenRouter from './routes/grow-token.mjs';
 import campaignRouter from './routes/campaign.mjs';
 import webhooksRouter from './routes/webhooks.mjs';
 import leaderboardRouter from './routes/leaderboard.mjs';
+import usersRouter from './routes/users.mjs';
 import { startStream as startXStream } from './services/x-agent.mjs';
 import { initCrons } from './cron/index.mjs';
 
@@ -45,6 +46,7 @@ app.use('/api/grow-token', growTokenRouter);
 app.use('/api/campaign', campaignRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/leaderboard', leaderboardRouter);
+app.use('/api/users', usersRouter);
 
 app.get('/', (req, res) => {
   res.json({
@@ -132,6 +134,11 @@ app.get('/', (req, res) => {
         bind: 'POST /api/identity/bind { actorId, githubUsername, proofHash, score, mode? }',
         revoke: 'POST /api/identity/revoke { actorId, mode? }',
         updateScore: 'POST /api/identity/update-score { actorId, newScore, mode? }',
+      },
+      users: {
+        register: 'POST /api/users/register { wallet, github_handle?, x_handle?, referral_code? }',
+        profile: 'GET /api/users/:wallet',
+        referrals: 'GET /api/users/:wallet/referrals',
       },
       campaign: {
         register: 'POST /api/campaign/register { wallet, github_handle?, x_handle?, track }',

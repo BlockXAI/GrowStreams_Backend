@@ -1,6 +1,7 @@
 import { query, queryOne, queryAll } from './db.mjs';
 
 const ONE_TIME_REASONS = ['INITIAL_AWARD', 'MERGE_BONUS', 'VIRAL_BONUS', 'RESHARE_BONUS'];
+const REFERRAL_BONUS_PCT = 0.05; // 5% referral bonus
 
 /**
  * Award XP to a participant.
@@ -38,7 +39,74 @@ export async function awardXP(wallet, xpDelta, reason, contributionId = null) {
   );
 
   console.log(`[xp] Awarded ${xpDelta} XP (${reason}) to ${wallet}`);
+
+  // Award referral bonus to referrer (skip if this IS a referral bonus to avoid recursion)
+  if (reason !== 'REFERRAL_BONUS' && xpDelta > 0) {
+    try {
+      await awardReferralBonus(wallet, xpDelta, event?.id || null);
+    } catch (refErr) {
+      console.warn(`[xp] Referral bonus failed for ${wallet}: ${refErr.message}`);
+    }
+  }
+
   return event;
+}
+
+/**
+ * Award 5% referral bonus to a user's referrer.
+ * Idempotent: only one referral bonus per source xp_event.
+ */
+async function awardReferralBonus(wallet, xpDelta, sourceEventId) {
+  // Look up the user and their referrer
+  const user = await queryOne(
+    `SELECT u.referred_by FROM users u
+     JOIN participants p ON p.user_id = u.id
+     WHERE p.wallet = $1`,
+    [wallet]
+  );
+  if (!user || !user.referred_by) return null;
+
+  // Find the referrer's participant wallet
+  const referrer = await queryOne(
+    `SELECT p.wallet FROM participants p
+     JOIN users u ON u.id = p.user_id
+     WHERE u.id = $1`,
+    [user.referred_by]
+  );
+  if (!referrer) return null;
+
+  const bonus = Math.max(1, Math.floor(xpDelta * REFERRAL_BONUS_PCT));
+
+  // Idempotency: check if we already gave a referral bonus for this source event
+  if (sourceEventId) {
+    const existing = await queryOne(
+      `SELECT id FROM xp_events
+       WHERE wallet = $1 AND reason = 'REFERRAL_BONUS' AND contribution_id = $2 LIMIT 1`,
+      [referrer.wallet, sourceEventId]
+    );
+    if (existing) return null;
+  }
+
+  const bonusEvent = await queryOne(
+    `INSERT INTO xp_events (wallet, xp_delta, reason, contribution_id)
+     VALUES ($1, $2, 'REFERRAL_BONUS', $3) RETURNING *`,
+    [referrer.wallet, bonus, sourceEventId]
+  );
+
+  // Recalculate referrer total
+  const sumRow = await queryOne(
+    `SELECT COALESCE(SUM(xp_delta), 0) AS total FROM xp_events WHERE wallet = $1`,
+    [referrer.wallet]
+  );
+  const total = sumRow ? parseInt(sumRow.total, 10) : 0;
+
+  await query(
+    `UPDATE participants SET total_xp = $1, updated_at = NOW() WHERE wallet = $2`,
+    [total, referrer.wallet]
+  );
+
+  console.log(`[xp] Referral bonus: ${bonus} XP to ${referrer.wallet} (from ${wallet})`);
+  return bonusEvent;
 }
 
 /**
@@ -99,9 +167,12 @@ export async function getLeaderboard(page = 1, limit = 50, track = null) {
   }
 
   const participants = await queryAll(
-    `SELECT wallet, github_handle, x_handle, display_name, track, total_xp, updated_at
-     FROM participants WHERE total_xp > 0 ${trackFilter}
-     ORDER BY total_xp DESC LIMIT $1 OFFSET $2`,
+    `SELECT p.wallet, p.github_handle, p.x_handle, p.display_name, p.track, p.total_xp, p.updated_at,
+            u.referral_code
+     FROM participants p
+     LEFT JOIN users u ON u.id = p.user_id
+     WHERE p.total_xp > 0 ${trackFilter}
+     ORDER BY p.total_xp DESC LIMIT $1 OFFSET $2`,
     params
   );
 
@@ -161,6 +232,8 @@ export async function getLeaderboard(page = 1, limit = 50, track = null) {
       rank,
       wallet: p.wallet,
       displayName: p.display_name || p.github_handle || p.x_handle || p.wallet,
+      github_handle: p.github_handle || null,
+      x_handle: p.x_handle || null,
       track: p.track,
       totalXP: p.total_xp,
       contributions: contributionCounts[p.wallet] || 0,
