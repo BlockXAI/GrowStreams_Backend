@@ -107,6 +107,24 @@ router.get('/participant/:wallet', async (req, res, next) => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/campaign/leaderboard (convenience proxy to /api/leaderboard)
+// ---------------------------------------------------------------------------
+router.get('/leaderboard', async (req, res, next) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '50', 10)));
+    const track = req.query.track || null;
+
+    if (track && !['OSS', 'CONTENT', 'BOTH'].includes(track)) {
+      return res.status(400).json({ error: 'Invalid track. Must be OSS, CONTENT, or BOTH' });
+    }
+
+    const result = await getLeaderboard(page, limit, track);
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
+// ---------------------------------------------------------------------------
 // GET /api/campaign/config
 // ---------------------------------------------------------------------------
 router.get('/config', (req, res) => {

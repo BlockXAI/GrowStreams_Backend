@@ -292,10 +292,10 @@ export async function handlePROpened(payload) {
     return;
   }
 
-  // Check for existing contribution (avoid duplicate scoring)
+  // Check for existing contribution (avoid duplicate scoring via close+reopen)
   const existing = await findContributionByPR(prNumber);
-  if (existing && existing.status === 'ACTIVE') {
-    console.log(`[github-agent] PR #${prNumber} already scored and active, skipping`);
+  if (existing && ['ACTIVE', 'MERGED', 'CLOSED'].includes(existing.status)) {
+    console.log(`[github-agent] PR #${prNumber} already has contribution (status=${existing.status}), skipping`);
     return;
   }
 

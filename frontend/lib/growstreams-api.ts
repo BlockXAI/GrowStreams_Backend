@@ -241,6 +241,27 @@ export const api = {
       post<{ mode: string }>('/api/grow-token/admin/faucet-mode', { mode } as Record<string, unknown>),
   },
 
+  campaign: {
+    register: (params: { wallet: string; github_handle?: string; x_handle?: string; track: string }) =>
+      post<Record<string, unknown>>('/api/campaign/register', params as unknown as Record<string, unknown>),
+    participant: (wallet: string) =>
+      get<Record<string, unknown>>(`/api/campaign/participant/${wallet}`),
+    config: () =>
+      get<Record<string, unknown>>('/api/campaign/config'),
+    leaderboard: (params?: { page?: number; limit?: number; track?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.page) q.set('page', String(params.page));
+      if (params?.limit) q.set('limit', String(params.limit));
+      if (params?.track) q.set('track', params.track);
+      const qs = q.toString();
+      return get<Record<string, unknown>>(`/api/leaderboard${qs ? '?' + qs : ''}`);
+    },
+    leaderboardStats: () =>
+      get<Record<string, unknown>>('/api/leaderboard/stats'),
+    participantStats: (wallet: string) =>
+      get<Record<string, unknown>>(`/api/leaderboard/${wallet}`),
+  },
+
   identity: {
     config: () => get<{ oracle: string; total_bindings: number }>('/api/identity/config'),
     oracle: () => get<{ oracle: string }>('/api/identity/oracle'),

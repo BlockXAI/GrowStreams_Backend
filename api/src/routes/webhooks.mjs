@@ -33,9 +33,13 @@ router.post('/github', async (req, res) => {
   const event = req.headers['x-github-event'];
   const deliveryId = req.headers['x-github-delivery'];
 
-  // Verify webhook secret
+  // Verify webhook secret — MUST be configured, reject all if missing
   const secret = process.env.GITHUB_WEBHOOK_SECRET;
-  if (secret) {
+  if (!secret) {
+    console.error('[webhook] GITHUB_WEBHOOK_SECRET not configured, rejecting request');
+    return res.status(500).json({ error: 'Webhook secret not configured' });
+  }
+  {
     if (!signature) {
       console.warn('[webhook] Missing X-Hub-Signature-256 header');
       return res.status(401).json({ error: 'Missing signature' });
