@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { queryOne } from '../services/db.mjs';
 import {
+  awardXP,
   getLeaderboard,
   getParticipantStats,
   calculateAllPayouts,
@@ -181,6 +182,34 @@ router.post('/payout-snapshot', async (req, res, next) => {
     const payouts = await calculateAllPayouts();
     console.log(`[campaign] Payout snapshot generated: ${payouts.totalParticipants} participants, ${payouts.totalXP} total XP`);
     res.json(payouts);
+  } catch (err) { next(err); }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/campaign/award-xp (admin only — for testing)
+// ---------------------------------------------------------------------------
+router.post('/award-xp', async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const adminSecret = process.env.ADMIN_SECRET;
+
+    if (!adminSecret) {
+      return res.status(500).json({ error: 'ADMIN_SECRET not configured on server' });
+    }
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing Authorization header: Bearer <ADMIN_SECRET>' });
+    }
+    if (authHeader.slice(7) !== adminSecret) {
+      return res.status(401).json({ error: 'Invalid admin secret' });
+    }
+
+    const { wallet, xp, reason } = req.body;
+    if (!wallet || !xp || !reason) {
+      return res.status(400).json({ error: 'Missing: wallet, xp, reason' });
+    }
+
+    const event = await awardXP(wallet, parseInt(xp, 10), reason);
+    res.json({ success: true, event });
   } catch (err) { next(err); }
 });
 
