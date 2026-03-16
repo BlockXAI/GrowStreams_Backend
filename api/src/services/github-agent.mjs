@@ -1,7 +1,7 @@
 import { Octokit } from 'octokit';
 import { scorePR } from './llm-scorer.mjs';
 import { awardXP, getInitialXP } from './xp-service.mjs';
-import { getSupabase } from './supabase.mjs';
+import { queryOne, queryAll, query } from './db.mjs';
 
 let octokit = null;
 
@@ -190,37 +190,26 @@ function buildMergeBonusComment(bonusXP, wallet) {
 // Look up participant by GitHub username
 // ---------------------------------------------------------------------------
 async function findParticipant(githubUsername) {
-  const db = getSupabase();
-  const { data } = await db
-    .from('participants')
-    .select('*')
-    .eq('github_handle', githubUsername)
-    .single();
-
-  return data || null;
+  return await queryOne(
+    `SELECT * FROM participants WHERE github_handle = $1`,
+    [githubUsername]
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Find existing contribution by PR number
 // ---------------------------------------------------------------------------
 async function findContributionByPR(prNumber) {
-  const db = getSupabase();
-  const { data } = await db
-    .from('contributions')
-    .select('*')
-    .eq('pr_number', prNumber)
-    .eq('track', 'OSS')
-    .single();
-
-  return data || null;
+  return await queryOne(
+    `SELECT * FROM contributions WHERE pr_number = $1 AND track = 'OSS'`,
+    [prNumber]
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Insert a new contribution record
 // ---------------------------------------------------------------------------
 async function insertContribution(wallet, prNumber, score, xpAwarded, status, agentFeedback, agentResponse) {
-  const db = getSupabase();
-
   const now = new Date().toISOString();
   const isActive = status === 'ACTIVE';
   const maxDailyDays = 14;
@@ -228,26 +217,18 @@ async function insertContribution(wallet, prNumber, score, xpAwarded, status, ag
     ? new Date(Date.now() + maxDailyDays * 86400000).toISOString()
     : null;
 
-  const { data, error } = await db
-    .from('contributions')
-    .insert({
-      wallet,
-      track: 'OSS',
-      external_id: `PR#${prNumber}`,
-      score,
-      xp_awarded: xpAwarded,
-      status,
-      agent_feedback: agentFeedback,
-      agent_response: agentResponse,
-      pr_number: prNumber,
-      first_scored_at: isActive ? now : null,
-      max_daily_until: maxDailyUntil,
-      submitted_at: now,
-    })
-    .select()
-    .single();
+  const data = await queryOne(
+    `INSERT INTO contributions
+       (wallet, track, external_id, score, xp_awarded, status, agent_feedback, agent_response, pr_number, first_scored_at, max_daily_until, submitted_at)
+     VALUES ($1, 'OSS', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     RETURNING *`,
+    [
+      wallet, `PR#${prNumber}`, score, xpAwarded, status,
+      agentFeedback, JSON.stringify(agentResponse), prNumber,
+      isActive ? now : null, maxDailyUntil, now,
+    ]
+  );
 
-  if (error) throw new Error(`[github-agent] Insert contribution failed: ${error.message}`);
   return data;
 }
 
@@ -255,13 +236,24 @@ async function insertContribution(wallet, prNumber, score, xpAwarded, status, ag
 // Update an existing contribution
 // ---------------------------------------------------------------------------
 async function updateContribution(id, updates) {
-  const db = getSupabase();
-  const { error } = await db
-    .from('contributions')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id);
+  const setClauses = [];
+  const values = [];
+  let idx = 1;
 
-  if (error) throw new Error(`[github-agent] Update contribution failed: ${error.message}`);
+  for (const [key, val] of Object.entries(updates)) {
+    setClauses.push(`${key} = $${idx}`);
+    values.push(key === 'agent_response' ? JSON.stringify(val) : val);
+    idx++;
+  }
+  setClauses.push(`updated_at = $${idx}`);
+  values.push(new Date().toISOString());
+  idx++;
+  values.push(id);
+
+  await query(
+    `UPDATE contributions SET ${setClauses.join(', ')} WHERE id = $${idx}`,
+    values
+  );
 }
 
 // ===========================================================================

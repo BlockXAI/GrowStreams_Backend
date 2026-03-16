@@ -17,13 +17,13 @@
     "express": "^4.21.0",
     "helmet": "^8.0.0",
     "morgan": "^1.10.0",
-    "@supabase/supabase-js": "^2.97.0",
+    "pg": "^8.13.0",
     "openai": "^4.70.0",
     "octokit": "^4.0.0",
     "twitter-api-v2": "^1.17.0",
     "node-cron": "^3.0.3"
   },
   "engines": {
-    "node": ">=20"
+    "node": "20.x"
   }
 }

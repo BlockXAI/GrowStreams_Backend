@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getSupabase } from '../services/supabase.mjs';
+import { queryOne } from '../services/db.mjs';
 import { getLeaderboard, getParticipantStats } from '../services/xp-service.mjs';
 
 const router = Router();
@@ -27,50 +27,41 @@ router.get('/', async (req, res, next) => {
 // ---------------------------------------------------------------------------
 router.get('/stats', async (req, res, next) => {
   try {
-    const db = getSupabase();
-
     // Total participants with XP > 0
-    const { count: totalParticipants } = await db
-      .from('participants')
-      .select('*', { count: 'exact', head: true })
-      .gt('total_xp', 0);
+    const pRow = await queryOne(
+      `SELECT COUNT(*) AS cnt FROM participants WHERE total_xp > 0`
+    );
+    const totalParticipants = parseInt(pRow?.cnt || '0', 10);
 
     // Total XP
-    const { data: xpData } = await db
-      .from('participants')
-      .select('total_xp')
-      .gt('total_xp', 0);
-
-    const totalXP = xpData ? xpData.reduce((sum, p) => sum + p.total_xp, 0) : 0;
+    const xpRow = await queryOne(
+      `SELECT COALESCE(SUM(total_xp), 0) AS total FROM participants WHERE total_xp > 0`
+    );
+    const totalXP = parseInt(xpRow?.total || '0', 10);
 
     // Total contributions (non-rejected/deleted)
-    const { count: totalContributions } = await db
-      .from('contributions')
-      .select('*', { count: 'exact', head: true })
-      .not('status', 'in', '("REJECTED","DELETED")');
+    const cRow = await queryOne(
+      `SELECT COUNT(*) AS cnt FROM contributions WHERE status NOT IN ('REJECTED','DELETED')`
+    );
+    const totalContributions = parseInt(cRow?.cnt || '0', 10);
 
     // OSS contributions
-    const { count: ossContributions } = await db
-      .from('contributions')
-      .select('*', { count: 'exact', head: true })
-      .eq('track', 'OSS')
-      .not('status', 'in', '("REJECTED","DELETED")');
+    const ossRow = await queryOne(
+      `SELECT COUNT(*) AS cnt FROM contributions WHERE track = 'OSS' AND status NOT IN ('REJECTED','DELETED')`
+    );
+    const ossContributions = parseInt(ossRow?.cnt || '0', 10);
 
     // Content contributions
-    const { count: contentContributions } = await db
-      .from('contributions')
-      .select('*', { count: 'exact', head: true })
-      .eq('track', 'CONTENT')
-      .not('status', 'in', '("REJECTED","DELETED")');
+    const contentRow = await queryOne(
+      `SELECT COUNT(*) AS cnt FROM contributions WHERE track = 'CONTENT' AND status NOT IN ('REJECTED','DELETED')`
+    );
+    const contentContributions = parseInt(contentRow?.cnt || '0', 10);
 
     // Top contributor
-    const { data: topData } = await db
-      .from('participants')
-      .select('wallet, display_name, github_handle, x_handle, total_xp, track')
-      .gt('total_xp', 0)
-      .order('total_xp', { ascending: false })
-      .limit(1)
-      .single();
+    const topData = await queryOne(
+      `SELECT wallet, display_name, github_handle, x_handle, total_xp, track
+       FROM participants WHERE total_xp > 0 ORDER BY total_xp DESC LIMIT 1`
+    );
 
     const topContributor = topData ? {
       wallet: topData.wallet,
@@ -88,11 +79,11 @@ router.get('/stats', async (req, res, next) => {
     const poolUSDC = parseFloat(process.env.CAMPAIGN_POOL_USDC || '500');
 
     res.json({
-      totalParticipants: totalParticipants || 0,
+      totalParticipants,
       totalXP,
-      totalContributions: totalContributions || 0,
-      ossContributions: ossContributions || 0,
-      contentContributions: contentContributions || 0,
+      totalContributions,
+      ossContributions,
+      contentContributions,
       topContributor,
       campaignDaysRemaining,
       poolUSDC,

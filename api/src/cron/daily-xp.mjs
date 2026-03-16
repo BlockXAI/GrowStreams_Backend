@@ -1,4 +1,4 @@
-import { getSupabase } from '../services/supabase.mjs';
+import { queryAll, queryOne } from '../services/db.mjs';
 import { awardXP, getDailyRate } from '../services/xp-service.mjs';
 
 /**
@@ -15,21 +15,17 @@ export async function runDailyXP() {
   const startTime = Date.now();
   console.log('[daily-xp] Starting daily XP accumulation...');
 
-  const db = getSupabase();
+  const now = new Date().toISOString();
 
   // Fetch eligible contributions
-  const now = new Date().toISOString();
-  const { data: contributions, error } = await db
-    .from('contributions')
-    .select('id, wallet, score, status, max_daily_until')
-    .eq('track', 'OSS')
-    .in('status', ['ACTIVE', 'MERGED'])
-    .or(`max_daily_until.is.null,max_daily_until.gt.${now}`);
-
-  if (error) {
-    console.error(`[daily-xp] Query failed: ${error.message}`);
-    return;
-  }
+  const contributions = await queryAll(
+    `SELECT id, wallet, score, status, max_daily_until
+     FROM contributions
+     WHERE track = 'OSS'
+       AND status IN ('ACTIVE', 'MERGED')
+       AND (max_daily_until IS NULL OR max_daily_until > $1)`,
+    [now]
+  );
 
   if (!contributions || contributions.length === 0) {
     console.log('[daily-xp] No eligible contributions found');
@@ -43,18 +39,15 @@ export async function runDailyXP() {
   for (const contrib of contributions) {
     try {
       // Check if already awarded today for this contribution
-      const { data: todayEvents } = await db
-        .from('xp_events')
-        .select('id')
-        .eq('contribution_id', contrib.id)
-        .eq('reason', 'DAILY_ACCUMULATION')
-        .gte('created_at', `${today}T00:00:00.000Z`)
-        .lt('created_at', `${today}T23:59:59.999Z`)
-        .limit(1);
+      const todayEvent = await queryOne(
+        `SELECT id FROM xp_events
+         WHERE contribution_id = $1 AND reason = 'DAILY_ACCUMULATION'
+           AND created_at >= $2 AND created_at < $3
+         LIMIT 1`,
+        [contrib.id, `${today}T00:00:00.000Z`, `${today}T23:59:59.999Z`]
+      );
 
-      if (todayEvents && todayEvents.length > 0) {
-        continue; // Already awarded today
-      }
+      if (todayEvent) continue; // Already awarded today
 
       const dailyRate = getDailyRate(contrib.score);
       if (dailyRate <= 0) continue;

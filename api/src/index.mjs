@@ -7,6 +7,7 @@ import { config } from 'dotenv';
 config();
 
 import { connect } from './sails-client.mjs';
+import { migrate } from './services/db.mjs';
 import healthRouter from './routes/health.mjs';
 import streamsRouter from './routes/streams.mjs';
 import vaultRouter from './routes/vault.mjs';
@@ -160,6 +161,13 @@ app.use((err, req, res, next) => {
 
 async function start() {
   try {
+    // Run database migrations (creates tables if not exist)
+    try {
+      await migrate();
+    } catch (dbErr) {
+      console.warn(`[db] Migration warning: ${dbErr.message}`);
+    }
+
     await connect();
     app.listen(PORT, '0.0.0.0', async () => {
       console.log(`[api] GrowStreams V2 API listening on port ${PORT}`);

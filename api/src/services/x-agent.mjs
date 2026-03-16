@@ -1,7 +1,7 @@
 import { TwitterApi } from 'twitter-api-v2';
 import { scoreContent } from './llm-scorer.mjs';
 import { awardXP, getInitialXP } from './xp-service.mjs';
-import { getSupabase } from './supabase.mjs';
+import { queryOne, query } from './db.mjs';
 
 let readClient = null;
 let writeClient = null;
@@ -57,58 +57,36 @@ function isCampaignActive() {
 // Lookup participant by X handle
 // ---------------------------------------------------------------------------
 async function findParticipantByX(xHandle) {
-  const db = getSupabase();
   // Normalize handle (remove leading @)
   const handle = xHandle.startsWith('@') ? xHandle.slice(1) : xHandle;
-
-  const { data } = await db
-    .from('participants')
-    .select('*')
-    .eq('x_handle', handle)
-    .single();
-
-  return data || null;
+  return await queryOne(
+    `SELECT * FROM participants WHERE x_handle = $1`,
+    [handle]
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Check if tweet already processed
 // ---------------------------------------------------------------------------
 async function findContributionByTweet(tweetId) {
-  const db = getSupabase();
-  const { data } = await db
-    .from('contributions')
-    .select('*')
-    .eq('tweet_id', tweetId)
-    .eq('track', 'CONTENT')
-    .single();
-
-  return data || null;
+  return await queryOne(
+    `SELECT * FROM contributions WHERE tweet_id = $1 AND track = 'CONTENT'`,
+    [tweetId]
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Insert content contribution
 // ---------------------------------------------------------------------------
 async function insertContribution(wallet, tweetId, score, xpAwarded, status, agentFeedback, agentResponse) {
-  const db = getSupabase();
-
-  const { data, error } = await db
-    .from('contributions')
-    .insert({
-      wallet,
-      track: 'CONTENT',
-      external_id: `TWEET#${tweetId}`,
-      score,
-      xp_awarded: xpAwarded,
-      status,
-      agent_feedback: agentFeedback,
-      agent_response: agentResponse,
-      tweet_id: tweetId,
-      submitted_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
-
-  if (error) throw new Error(`[x-agent] Insert contribution failed: ${error.message}`);
+  const now = new Date().toISOString();
+  const data = await queryOne(
+    `INSERT INTO contributions
+       (wallet, track, external_id, score, xp_awarded, status, agent_feedback, agent_response, tweet_id, submitted_at)
+     VALUES ($1, 'CONTENT', $2, $3, $4, $5, $6, $7, $8, $9)
+     RETURNING *`,
+    [wallet, `TWEET#${tweetId}`, score, xpAwarded, status, agentFeedback, JSON.stringify(agentResponse), tweetId, now]
+  );
   return data;
 }
 
@@ -116,13 +94,22 @@ async function insertContribution(wallet, tweetId, score, xpAwarded, status, age
 // Update contribution
 // ---------------------------------------------------------------------------
 async function updateContribution(id, updates) {
-  const db = getSupabase();
-  const { error } = await db
-    .from('contributions')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id);
-
-  if (error) throw new Error(`[x-agent] Update contribution failed: ${error.message}`);
+  const setClauses = [];
+  const values = [];
+  let idx = 1;
+  for (const [key, val] of Object.entries(updates)) {
+    setClauses.push(`${key} = $${idx}`);
+    values.push(key === 'agent_response' ? JSON.stringify(val) : val);
+    idx++;
+  }
+  setClauses.push(`updated_at = $${idx}`);
+  values.push(new Date().toISOString());
+  idx++;
+  values.push(id);
+  await query(
+    `UPDATE contributions SET ${setClauses.join(', ')} WHERE id = $${idx}`,
+    values
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -150,16 +137,13 @@ function engagementToScore(velocity) {
 // Get participant rank
 // ---------------------------------------------------------------------------
 async function getParticipantRank(wallet) {
-  const db = getSupabase();
-  const { data } = await db
-    .from('participants')
-    .select('wallet, total_xp')
-    .gt('total_xp', 0)
-    .order('total_xp', { ascending: false });
-
-  if (!data) return null;
-  const idx = data.findIndex(p => p.wallet === wallet);
-  return idx >= 0 ? idx + 1 : null;
+  const row = await queryOne(
+    `SELECT COUNT(*) + 1 AS rank FROM participants WHERE total_xp > (
+       SELECT COALESCE(total_xp, 0) FROM participants WHERE wallet = $1
+     )`,
+    [wallet]
+  );
+  return row ? parseInt(row.rank, 10) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -329,14 +313,11 @@ function scheduleReevaluation(contributionId, tweetId, wallet, delayMs) {
 export async function reevaluateTweet(contributionId, tweetId, wallet) {
   console.log(`[x-agent] Re-evaluating tweet ${tweetId}`);
 
-  const db = getSupabase();
-
   // Fetch contribution
-  const { data: contribution } = await db
-    .from('contributions')
-    .select('*')
-    .eq('id', contributionId)
-    .single();
+  const contribution = await queryOne(
+    `SELECT * FROM contributions WHERE id = $1`,
+    [contributionId]
+  );
 
   if (!contribution || contribution.status !== 'ACTIVE') {
     console.log(`[x-agent] Contribution ${contributionId} not active, skipping re-eval`);

@@ -1,4 +1,4 @@
-import { getSupabase } from './supabase.mjs';
+import { query, queryOne, queryAll } from './db.mjs';
 
 const ONE_TIME_REASONS = ['INITIAL_AWARD', 'MERGE_BONUS', 'VIRAL_BONUS', 'RESHARE_BONUS'];
 
@@ -8,52 +8,34 @@ const ONE_TIME_REASONS = ['INITIAL_AWARD', 'MERGE_BONUS', 'VIRAL_BONUS', 'RESHAR
  * One-time reasons are idempotent per (reason, contribution_id).
  */
 export async function awardXP(wallet, xpDelta, reason, contributionId = null) {
-  const db = getSupabase();
-
   if (ONE_TIME_REASONS.includes(reason) && contributionId) {
-    const { data: existing } = await db
-      .from('xp_events')
-      .select('id')
-      .eq('wallet', wallet)
-      .eq('reason', reason)
-      .eq('contribution_id', contributionId)
-      .limit(1);
-
-    if (existing && existing.length > 0) {
+    const existing = await queryOne(
+      `SELECT id FROM xp_events WHERE wallet = $1 AND reason = $2 AND contribution_id = $3 LIMIT 1`,
+      [wallet, reason, contributionId]
+    );
+    if (existing) {
       console.log(`[xp] Skipped duplicate ${reason} for ${wallet} on ${contributionId}`);
       return null;
     }
   }
 
-  const { data: event, error: eventErr } = await db
-    .from('xp_events')
-    .insert({
-      wallet,
-      xp_delta: xpDelta,
-      reason,
-      contribution_id: contributionId,
-    })
-    .select()
-    .single();
-
-  if (eventErr) throw new Error(`[xp] Failed to insert xp_event: ${eventErr.message}`);
+  const event = await queryOne(
+    `INSERT INTO xp_events (wallet, xp_delta, reason, contribution_id)
+     VALUES ($1, $2, $3, $4) RETURNING *`,
+    [wallet, xpDelta, reason, contributionId]
+  );
 
   // Recalculate total from all xp_events for this wallet (safe, avoids drift)
-  const { data: sumData } = await db
-    .from('xp_events')
-    .select('xp_delta')
-    .eq('wallet', wallet);
+  const sumRow = await queryOne(
+    `SELECT COALESCE(SUM(xp_delta), 0) AS total FROM xp_events WHERE wallet = $1`,
+    [wallet]
+  );
+  const total = sumRow ? parseInt(sumRow.total, 10) : 0;
 
-  const total = sumData ? sumData.reduce((sum, row) => sum + row.xp_delta, 0) : 0;
-
-  const { error: updateErr } = await db
-    .from('participants')
-    .update({ total_xp: total, updated_at: new Date().toISOString() })
-    .eq('wallet', wallet);
-
-  if (updateErr) {
-    console.error(`[xp] Failed to update total_xp for ${wallet}: ${updateErr.message}`);
-  }
+  await query(
+    `UPDATE participants SET total_xp = $1, updated_at = NOW() WHERE wallet = $2`,
+    [total, wallet]
+  );
 
   console.log(`[xp] Awarded ${xpDelta} XP (${reason}) to ${wallet}`);
   return event;
@@ -63,15 +45,12 @@ export async function awardXP(wallet, xpDelta, reason, contributionId = null) {
  * Get current XP for a wallet.
  */
 export async function getXP(wallet) {
-  const db = getSupabase();
-  const { data, error } = await db
-    .from('participants')
-    .select('total_xp')
-    .eq('wallet', wallet)
-    .single();
-
-  if (error) throw new Error(`[xp] Participant not found: ${wallet}`);
-  return data.total_xp;
+  const row = await queryOne(
+    `SELECT total_xp FROM participants WHERE wallet = $1`,
+    [wallet]
+  );
+  if (!row) throw new Error(`[xp] Participant not found: ${wallet}`);
+  return row.total_xp;
 }
 
 /**
@@ -109,62 +88,64 @@ export function getInitialXP(score, track) {
  * Get paginated leaderboard with rank, estimated USDC, and rank change.
  */
 export async function getLeaderboard(page = 1, limit = 50, track = null) {
-  const db = getSupabase();
   const offset = (page - 1) * limit;
 
-  let query = db
-    .from('participants')
-    .select('wallet, github_handle, x_handle, display_name, track, total_xp, updated_at', { count: 'exact' })
-    .gt('total_xp', 0)
-    .order('total_xp', { ascending: false })
-    .range(offset, offset + limit - 1);
-
+  // Build dynamic WHERE for track filter
+  let trackFilter = '';
+  const params = [limit, offset];
   if (track && track !== 'BOTH') {
-    query = query.or(`track.eq.${track},track.eq.BOTH`);
+    trackFilter = `AND (track = $3 OR track = 'BOTH')`;
+    params.push(track);
   }
 
-  const { data: participants, error, count } = await query;
-  if (error) throw new Error(`[xp] Leaderboard query failed: ${error.message}`);
+  const participants = await queryAll(
+    `SELECT wallet, github_handle, x_handle, display_name, track, total_xp, updated_at
+     FROM participants WHERE total_xp > 0 ${trackFilter}
+     ORDER BY total_xp DESC LIMIT $1 OFFSET $2`,
+    params
+  );
 
-  const { data: totalXPData } = await db
-    .from('participants')
-    .select('total_xp')
-    .gt('total_xp', 0);
+  // Total count
+  const countParams = track && track !== 'BOTH' ? [track] : [];
+  const countRow = await queryOne(
+    `SELECT COUNT(*) AS cnt FROM participants WHERE total_xp > 0 ${
+      track && track !== 'BOTH' ? `AND (track = $1 OR track = 'BOTH')` : ''
+    }`,
+    countParams
+  );
+  const count = parseInt(countRow?.cnt || '0', 10);
 
-  const totalXP = totalXPData
-    ? totalXPData.reduce((sum, p) => sum + p.total_xp, 0)
-    : 0;
+  // Global total XP
+  const totalXPRow = await queryOne(
+    `SELECT COALESCE(SUM(total_xp), 0) AS total FROM participants WHERE total_xp > 0`
+  );
+  const totalXP = parseInt(totalXPRow?.total || '0', 10);
 
   const poolUSDC = parseFloat(process.env.CAMPAIGN_POOL_USDC || '500');
 
-  const today = new Date().toISOString().split('T')[0];
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
-  const { data: snapshots } = await db
-    .from('daily_snapshots')
-    .select('wallet, rank_at_snapshot')
-    .eq('snapshot_date', yesterday);
+  const snapshots = await queryAll(
+    `SELECT wallet, rank_at_snapshot FROM daily_snapshots WHERE snapshot_date = $1`,
+    [yesterday]
+  );
 
   const snapshotMap = {};
-  if (snapshots) {
-    for (const s of snapshots) {
-      snapshotMap[s.wallet] = s.rank_at_snapshot;
-    }
+  for (const s of snapshots) {
+    snapshotMap[s.wallet] = s.rank_at_snapshot;
   }
 
   const wallets = participants.map(p => p.wallet);
   let contributionCounts = {};
   if (wallets.length > 0) {
-    const { data: contribs } = await db
-      .from('contributions')
-      .select('wallet')
-      .in('wallet', wallets)
-      .not('status', 'in', '("REJECTED","DELETED")');
-
-    if (contribs) {
-      for (const c of contribs) {
-        contributionCounts[c.wallet] = (contributionCounts[c.wallet] || 0) + 1;
-      }
+    const placeholders = wallets.map((_, i) => `$${i + 1}`).join(',');
+    const contribs = await queryAll(
+      `SELECT wallet FROM contributions
+       WHERE wallet IN (${placeholders}) AND status NOT IN ('REJECTED','DELETED')`,
+      wallets
+    );
+    for (const c of contribs) {
+      contributionCounts[c.wallet] = (contributionCounts[c.wallet] || 0) + 1;
     }
   }
 
@@ -209,54 +190,42 @@ export async function getLeaderboard(page = 1, limit = 50, track = null) {
  * Get full stats for a single participant.
  */
 export async function getParticipantStats(wallet) {
-  const db = getSupabase();
+  const participant = await queryOne(
+    `SELECT * FROM participants WHERE wallet = $1`, [wallet]
+  );
+  if (!participant) throw new Error(`[xp] Participant not found: ${wallet}`);
 
-  const { data: participant, error: pErr } = await db
-    .from('participants')
-    .select('*')
-    .eq('wallet', wallet)
-    .single();
+  const contributions = await queryAll(
+    `SELECT * FROM contributions WHERE wallet = $1 ORDER BY submitted_at DESC`, [wallet]
+  );
 
-  if (pErr) throw new Error(`[xp] Participant not found: ${wallet}`);
+  const xpEvents = await queryAll(
+    `SELECT * FROM xp_events WHERE wallet = $1 ORDER BY created_at DESC LIMIT 100`, [wallet]
+  );
 
-  const { data: contributions } = await db
-    .from('contributions')
-    .select('*')
-    .eq('wallet', wallet)
-    .order('submitted_at', { ascending: false });
-
-  const { data: xpEvents } = await db
-    .from('xp_events')
-    .select('*')
-    .eq('wallet', wallet)
-    .order('created_at', { ascending: false })
-    .limit(100);
-
-  const { data: totalXPData } = await db
-    .from('participants')
-    .select('total_xp')
-    .gt('total_xp', 0);
-
-  const totalXP = totalXPData
-    ? totalXPData.reduce((sum, p) => sum + p.total_xp, 0)
-    : 0;
+  const totalXPRow = await queryOne(
+    `SELECT COALESCE(SUM(total_xp), 0) AS total FROM participants WHERE total_xp > 0`
+  );
+  const totalXP = parseInt(totalXPRow?.total || '0', 10);
 
   const poolUSDC = parseFloat(process.env.CAMPAIGN_POOL_USDC || '500');
   const estimatedUSDC = totalXP > 0
     ? Math.round((participant.total_xp / totalXP) * poolUSDC * 100) / 100
     : 0;
 
-  const sorted = (totalXPData || [])
-    .map(p => p.total_xp)
-    .sort((a, b) => b - a);
-  const rank = sorted.indexOf(participant.total_xp) + 1;
+  // Calculate rank
+  const rankRow = await queryOne(
+    `SELECT COUNT(*) + 1 AS rank FROM participants WHERE total_xp > $1`,
+    [participant.total_xp]
+  );
+  const rank = parseInt(rankRow?.rank || '0', 10);
 
-  const { data: snapshots } = await db
-    .from('daily_snapshots')
-    .select('snapshot_date, xp_at_snapshot, rank_at_snapshot')
-    .eq('wallet', wallet)
-    .order('snapshot_date', { ascending: false })
-    .limit(21);
+  const snapshots = await queryAll(
+    `SELECT snapshot_date, xp_at_snapshot, rank_at_snapshot
+     FROM daily_snapshots WHERE wallet = $1
+     ORDER BY snapshot_date DESC LIMIT 21`,
+    [wallet]
+  );
 
   return {
     participant,
@@ -272,24 +241,15 @@ export async function getParticipantStats(wallet) {
  * Calculate payout for a single wallet.
  */
 export async function calculatePayout(wallet) {
-  const db = getSupabase();
-
-  const { data: participant } = await db
-    .from('participants')
-    .select('total_xp')
-    .eq('wallet', wallet)
-    .single();
-
+  const participant = await queryOne(
+    `SELECT total_xp FROM participants WHERE wallet = $1`, [wallet]
+  );
   if (!participant) throw new Error(`[xp] Participant not found: ${wallet}`);
 
-  const { data: allParticipants } = await db
-    .from('participants')
-    .select('total_xp')
-    .gt('total_xp', 0);
-
-  const totalXP = allParticipants
-    ? allParticipants.reduce((sum, p) => sum + p.total_xp, 0)
-    : 0;
+  const totalXPRow = await queryOne(
+    `SELECT COALESCE(SUM(total_xp), 0) AS total FROM participants WHERE total_xp > 0`
+  );
+  const totalXP = parseInt(totalXPRow?.total || '0', 10);
 
   const poolUSDC = parseFloat(process.env.CAMPAIGN_POOL_USDC || '500');
   const payout = totalXP > 0
@@ -311,15 +271,10 @@ export async function calculatePayout(wallet) {
  * Calculate full payout table for all participants (admin).
  */
 export async function calculateAllPayouts() {
-  const db = getSupabase();
-
-  const { data: participants, error } = await db
-    .from('participants')
-    .select('wallet, display_name, github_handle, x_handle, track, total_xp')
-    .gt('total_xp', 0)
-    .order('total_xp', { ascending: false });
-
-  if (error) throw new Error(`[xp] Payout query failed: ${error.message}`);
+  const participants = await queryAll(
+    `SELECT wallet, display_name, github_handle, x_handle, track, total_xp
+     FROM participants WHERE total_xp > 0 ORDER BY total_xp DESC`
+  );
 
   const totalXP = participants.reduce((sum, p) => sum + p.total_xp, 0);
   const poolUSDC = parseFloat(process.env.CAMPAIGN_POOL_USDC || '500');

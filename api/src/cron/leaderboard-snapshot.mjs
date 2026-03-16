@@ -1,4 +1,4 @@
-import { getSupabase } from '../services/supabase.mjs';
+import { queryAll, query } from '../services/db.mjs';
 
 /**
  * Leaderboard snapshot — captures daily rank positions.
@@ -10,48 +10,34 @@ export async function runSnapshot() {
   const startTime = Date.now();
   console.log('[snapshot] Starting leaderboard snapshot...');
 
-  const db = getSupabase();
   const today = new Date().toISOString().split('T')[0];
 
   // Fetch all participants with XP, sorted by total_xp desc
-  const { data: participants, error } = await db
-    .from('participants')
-    .select('wallet, total_xp')
-    .gt('total_xp', 0)
-    .order('total_xp', { ascending: false });
-
-  if (error) {
-    console.error(`[snapshot] Query failed: ${error.message}`);
-    return;
-  }
+  const participants = await queryAll(
+    `SELECT wallet, total_xp FROM participants WHERE total_xp > 0 ORDER BY total_xp DESC`
+  );
 
   if (!participants || participants.length === 0) {
     console.log('[snapshot] No participants with XP found');
     return;
   }
 
-  // Build snapshot rows with rank
-  const rows = participants.map((p, i) => ({
-    snapshot_date: today,
-    wallet: p.wallet,
-    xp_at_snapshot: p.total_xp,
-    rank_at_snapshot: i + 1,
-  }));
-
-  // Upsert in batches of 100
-  const batchSize = 100;
+  // Upsert each snapshot row
   let upserted = 0;
 
-  for (let i = 0; i < rows.length; i += batchSize) {
-    const batch = rows.slice(i, i + batchSize);
-    const { error: upsertErr } = await db
-      .from('daily_snapshots')
-      .upsert(batch, { onConflict: 'snapshot_date,wallet' });
-
-    if (upsertErr) {
-      console.error(`[snapshot] Upsert batch failed: ${upsertErr.message}`);
-    } else {
-      upserted += batch.length;
+  for (let i = 0; i < participants.length; i++) {
+    const p = participants[i];
+    try {
+      await query(
+        `INSERT INTO daily_snapshots (snapshot_date, wallet, xp_at_snapshot, rank_at_snapshot)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (snapshot_date, wallet)
+         DO UPDATE SET xp_at_snapshot = $3, rank_at_snapshot = $4`,
+        [today, p.wallet, p.total_xp, i + 1]
+      );
+      upserted++;
+    } catch (err) {
+      console.error(`[snapshot] Upsert failed for ${p.wallet}: ${err.message}`);
     }
   }
 

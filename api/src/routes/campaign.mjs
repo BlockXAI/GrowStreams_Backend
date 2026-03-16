@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getSupabase } from '../services/supabase.mjs';
+import { queryOne } from '../services/db.mjs';
 import {
   getLeaderboard,
   getParticipantStats,
@@ -70,24 +70,18 @@ router.post('/register', async (req, res, next) => {
 
     const display_name = github_handle || x_handle || wallet.slice(0, 12);
 
-    const db = getSupabase();
-    const { data, error } = await db
-      .from('participants')
-      .insert({
-        wallet,
-        github_handle: github_handle || null,
-        x_handle: x_handle || null,
-        display_name,
-        track,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      if (error.code === '23505') {
+    let data;
+    try {
+      data = await queryOne(
+        `INSERT INTO participants (wallet, github_handle, x_handle, display_name, track)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [wallet, github_handle || null, x_handle || null, display_name, track]
+      );
+    } catch (dbErr) {
+      if (dbErr.code === '23505') {
         return res.status(409).json({ error: 'Participant already registered or handle already taken' });
       }
-      throw new Error(`Registration failed: ${error.message}`);
+      throw dbErr;
     }
 
     console.log(`[campaign] Registered ${wallet} (${track})`);
