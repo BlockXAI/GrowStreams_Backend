@@ -866,3 +866,17 @@ participants {
 2026-03-17 18:31:16,384 [daml.index.db.threadpool.connection.indexer-15] INFO  c.d.c.p.i.MeteringAggregator:participant=sandbox - Aggregating transaction metering for LedgerMeteringEnd(Offset(Bytes()),2026-03-17T13:00:00Z)
 2026-03-17 18:31:16,386 [daml.index.db.threadpool.connection.indexer-15] INFO  c.d.c.p.i.MeteringAggregator:participant=sandbox - Aggregating transaction metering completed up to LedgerMeteringEnd(Offset(Bytes()),2026-03-17T13:00:00Z)
 2026-03-17 18:41:49,397 [canton-env-ec-113] INFO  c.d.c.p.a.s.ApiLedgerIdentityService:participant=sandbox tid:3de998afe3fb7126488f935a3c9b50af - Received request for ledger identity: GetLedgerIdentityRequest().
+2026-03-17 19:12:56,323 [canton-env-ec-53] INFO  c.d.c.d.s.a.MemberAuthenticationServiceOld:domain=local - DOM::local::1220e37cd9e7... authenticated new token with expiry 2026-03-17T14:42:56.323500Z
+2026-03-17 19:12:56,739 [canton-env-ec-95] INFO  c.d.c.d.s.a.MemberAuthenticationServiceOld:domain=local - MED::local::1220e37cd9e7... authenticated new token with expiry 2026-03-17T14:42:56.739162Z
+2026-03-17 19:13:00,068 [canton-env-ec-42] INFO  c.d.c.d.s.a.MemberAuthenticationServiceOld:domain=local - PAR::sandbox::1220436b57d6... authenticated new token with expiry 2026-03-17T14:43:00.067956Z
+2026-03-17 19:13:16,285 [canton-env-ec-95] INFO  c.d.c.s.c.t.GrpcSequencerSubscription:domain=local/client=topology-manager - The sequencer subscription has been terminated by the server.
+2026-03-17 19:13:16,304 [canton-env-ec-90] INFO  c.d.c.s.c.t.GrpcSubscriptionErrorRetryPolicy:domain=local/client=topology-manager - Trying to reconnect to give the sequencer the opportunity to become available again (after Connection terminated by the server.)
+2026-03-17 19:13:16,364 [canton-env-ec-90] INFO  c.d.c.d.s.s.GrpcSequencerService:domain=local - DOM::local::1220e37cd9e7... subscribes from counter=12
+2026-03-17 19:13:16,716 [canton-env-ec-44] INFO  c.d.c.s.c.t.GrpcSequencerSubscription:domain=local/client=mediator - The sequencer subscription has been terminated by the server.
+2026-03-17 19:13:16,716 [canton-env-ec-113] INFO  c.d.c.s.c.t.GrpcSubscriptionErrorRetryPolicy:domain=local/client=mediator - Trying to reconnect to give the sequencer the opportunity to become available again (after Connection terminated by the server.)
+2026-03-17 19:13:16,770 [canton-env-ec-95] INFO  c.d.c.d.s.s.GrpcSequencerService:domain=local - MED::local::1220e37cd9e7... subscribes from counter=5
+2026-03-17 19:13:20,048 [canton-env-ec-102] INFO  c.d.c.s.c.t.GrpcSequencerSubscription:participant=sandbox/domainId=local::1220e37cd9e7 - The sequencer subscription has been terminated by the server.
+2026-03-17 19:13:20,048 [canton-env-ec-105] INFO  c.d.c.s.c.t.GrpcSubscriptionErrorRetryPolicy:participant=sandbox/domainId=local::1220e37cd9e7 - Trying to reconnect to give the sequencer the opportunity to become available again (after Connection terminated by the server.)
+2026-03-17 19:13:20,107 [canton-env-ec-53] INFO  c.d.c.d.s.s.GrpcSequencerService:domain=local - PAR::sandbox::1220436b57d6... subscribes from counter=8
+2026-03-17 19:31:16,378 [daml.index.db.threadpool.connection.indexer-8] INFO  c.d.c.p.i.MeteringAggregator:participant=sandbox - Aggregating transaction metering for LedgerMeteringEnd(Offset(Bytes()),2026-03-17T14:00:00Z)
+2026-03-17 19:31:16,387 [daml.index.db.threadpool.connection.indexer-8] INFO  c.d.c.p.i.MeteringAggregator:participant=sandbox - Aggregating transaction metering completed up to LedgerMeteringEnd(Offset(Bytes()),2026-03-17T14:00:00Z)

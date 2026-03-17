@@ -1,0 +1,90 @@
+-- Test for UpdateRate choice (Phase 1 requirement)
+module Test.UpdateRateTest where
+
+import Daml.Script
+import DA.Time
+import DA.Date
+import StreamCore
+
+testUpdateRate : Script ()
+testUpdateRate = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  bob <- allocateParty "Bob"
+  
+  factory <- submit admin do
+    createCmd StreamFactory with
+      admin = admin
+      nextStreamId = 1
+      users = [alice, bob]
+  
+  -- Create stream with initial rate 0.1 GROW/second
+  let startTime = time (date 2026 Mar 17) 0 0 0
+  (_, stream) <- submit alice do
+    exerciseCmd factory CreateStream with
+      sender = alice
+      receiver = bob
+      flowRate = 0.1
+      initialDeposit = 1000.0
+      currentTime = startTime
+  
+  -- Stream for 100 seconds at 0.1 GROW/s (10 GROW accrued)
+  let updateTime = addRelTime startTime (seconds 100)
+  
+  -- Update rate to 0.2 GROW/second
+  updatedStream <- submit alice do
+    exerciseCmd stream UpdateRate with
+      newRate = 0.2
+      currentTime = updateTime
+  
+  -- Stream for 100 more seconds at 0.2 GROW/s (20 GROW accrued)
+  let withdrawTime = addRelTime updateTime (seconds 100)
+  
+  -- Bob withdraws (should get 10 + 20 = 30 GROW total)
+  (_, amount) <- submit bob do
+    exerciseCmd updatedStream Withdraw with
+      currentTime = withdrawTime
+  
+  assertMsg "Should withdraw 30 GROW (10 at old rate + 20 at new rate)" (amount == 30.0)
+  
+  return ()
+
+testObligationView : Script ()
+testObligationView = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  bob <- allocateParty "Bob"
+  
+  factory <- submit admin do
+    createCmd StreamFactory with
+      admin = admin
+      nextStreamId = 1
+      users = [alice, bob]
+  
+  let startTime = time (date 2026 Mar 17) 0 0 0
+  (_, stream) <- submit alice do
+    exerciseCmd factory CreateStream with
+      sender = alice
+      receiver = bob
+      flowRate = 0.1
+      initialDeposit = 100.0
+      currentTime = startTime
+  
+  -- Wait 100 seconds
+  let queryTime = addRelTime startTime (seconds 100)
+  
+  -- Use ObligationView (new name matching proposal)
+  obligation <- submit bob do
+    exerciseCmd stream ObligationView with
+      currentTime = queryTime
+  
+  assertMsg "ObligationView should return 10 GROW" (obligation == 10.0)
+  
+  -- Verify GetWithdrawable still works (backward compatibility)
+  withdrawable <- submit bob do
+    exerciseCmd stream GetWithdrawable with
+      currentTime = queryTime
+  
+  assertMsg "GetWithdrawable should also return 10 GROW" (withdrawable == 10.0)
+  
+  return ()

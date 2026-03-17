@@ -73,6 +73,24 @@ template StreamAgreement
         create this with
           deposited = deposited + additionalDeposit
     
+    -- Sender updates flow rate (settles current accrual first)
+    choice UpdateRate : ContractId StreamAgreement
+      with
+        newRate     : Decimal
+        currentTime : Time
+      controller sender
+      do
+        assertMsg "Invalid rate" (newRate > 0.0)
+        assertMsg "Stream must be active" (status == Active)
+        
+        -- Settle current accrual before rate change
+        let accrued = calculateAccrued this currentTime
+        
+        create this with
+          flowRate = newRate
+          withdrawn = withdrawn + accrued
+          lastUpdate = currentTime
+    
     -- Sender pauses stream
     choice Pause : ContractId StreamAgreement
       with currentTime : Time
@@ -107,7 +125,15 @@ template StreamAgreement
         -- Archive stream (returns final amounts)
         return (finalAccrued, refundAmount)
     
-    -- Query withdrawable balance (non-consuming)
+    -- ObligationView: Real-time balance query (non-consuming, zero gas)
+    -- Matches Canton Dev Fund proposal requirement
+    nonconsuming choice ObligationView : Decimal
+      with currentTime : Time
+      controller receiver
+      do
+        return (calculateAccrued this currentTime)
+    
+    -- Legacy alias for backward compatibility
     nonconsuming choice GetWithdrawable : Decimal
       with currentTime : Time
       controller receiver
