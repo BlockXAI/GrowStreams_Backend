@@ -482,11 +482,13 @@ export async function startStream() {
       console.log('[x-agent] Filtered stream started, listening for GrowStreams mentions');
       return; // success — exit the retry loop
     } catch (err) {
-      const is503 = err.message?.includes('503') || err.code === 503;
+      const isRetryable = err.message?.includes('503') || err.code === 503
+        || err.message?.includes('429') || err.code === 429;
       console.error(`[x-agent] Failed to start stream (attempt ${streamAttempt}/${maxStreamAttempts}): ${err.message}`);
-      if (is503 && streamAttempt < maxStreamAttempts) {
-        console.log(`[x-agent] 503 — retrying stream in 5s...`);
-        await new Promise(r => setTimeout(r, 5000));
+      if (isRetryable && streamAttempt < maxStreamAttempts) {
+        const backoff = err.message?.includes('429') ? 60000 : 5000;
+        console.log(`[x-agent] ${err.message?.includes('429') ? '429 rate-limited' : '503'} — retrying stream in ${backoff / 1000}s...`);
+        await new Promise(r => setTimeout(r, backoff));
         continue;
       }
     }
