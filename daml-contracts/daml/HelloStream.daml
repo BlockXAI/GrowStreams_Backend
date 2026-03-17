@@ -1,0 +1,38 @@
+-- daml/HelloStream.daml
+-- Week 2 Learning Exercise: First Simple Contract
+module HelloStream where
+
+import Daml.Script
+
+template SimpleStream
+  with
+    sender   : Party
+    receiver : Party
+    amount   : Decimal
+  where
+    signatory sender
+    observer  receiver
+    
+    ensure amount > 0.0
+    
+    choice Withdraw : Decimal
+      controller receiver
+      do
+        return amount
+
+testSimple : Script ()
+testSimple = script do
+  alice <- allocateParty "Alice"
+  bob <- allocateParty "Bob"
+  
+  streamCid <- submit alice do
+    createCmd SimpleStream with
+      sender = alice
+      receiver = bob
+      amount = 100.0
+  
+  result <- submit bob do
+    exerciseCmd streamCid Withdraw
+  
+  assertMsg "Should withdraw 100" (result == 100.0)
+  return ()

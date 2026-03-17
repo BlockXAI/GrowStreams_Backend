@@ -1,0 +1,209 @@
+-- daml/StreamCore.daml
+-- Week 5-7: Streaming Engine Implementation
+-- Based on Canton_Ginie's escrow.daml pattern
+module StreamCore where
+
+import DA.Time
+import GrowToken
+
+data StreamStatus = Active | Paused | Stopped
+  deriving (Eq, Show)
+
+-- Helper function to convert microseconds to seconds
+convertMicrosecondsToSeconds : RelTime -> Int
+convertMicrosecondsToSeconds rt = 
+  let micros = convertRelTimeToMicroseconds rt
+  in truncate (intToDecimal micros / 1000000.0)
+
+-- Calculate accrued amount (THE CORE FORMULA)
+calculateAccrued : StreamAgreement -> Time -> Decimal
+calculateAccrued stream currentTime =
+  if stream.status /= Active then 0.0
+  else
+    let elapsedMicros = subTime currentTime stream.lastUpdate
+        elapsedSeconds = convertMicrosecondsToSeconds elapsedMicros
+        accrued = stream.flowRate * intToDecimal elapsedSeconds
+        available = stream.deposited - stream.withdrawn
+    in if accrued > available then available else accrued
+
+-- Main stream template (Obligation-First model)
+template StreamAgreement
+  with
+    streamId    : Int
+    sender      : Party
+    receiver    : Party
+    admin       : Party
+    flowRate    : Decimal  -- GROW per second
+    startTime   : Time
+    lastUpdate  : Time
+    deposited   : Decimal
+    withdrawn   : Decimal
+    status      : StreamStatus
+  where
+    signatory sender
+    observer  receiver, admin
+    
+    ensure flowRate > 0.0 && deposited >= 0.0 && withdrawn >= 0.0 && withdrawn <= deposited
+    
+    -- Receiver withdraws accrued tokens
+    choice Withdraw : (ContractId StreamAgreement, Decimal)
+      with currentTime : Time
+      controller receiver
+      do
+        let withdrawable = calculateAccrued this currentTime
+        assertMsg "No tokens to withdraw" (withdrawable > 0.0)
+        
+        -- Update stream state
+        newStream <- create this with
+          withdrawn = withdrawn + withdrawable
+          lastUpdate = currentTime
+        
+        return (newStream, withdrawable)
+    
+    -- Sender adds more deposit
+    choice TopUp : ContractId StreamAgreement
+      with
+        additionalDeposit : Decimal
+        currentTime       : Time
+      controller sender
+      do
+        assertMsg "Invalid deposit" (additionalDeposit > 0.0)
+        
+        -- Settle accrued first (update lastUpdate)
+        let accrued = calculateAccrued this currentTime
+        
+        create this with
+          deposited = deposited + additionalDeposit
+          lastUpdate = currentTime
+    
+    -- Sender pauses stream
+    choice Pause : ContractId StreamAgreement
+      with currentTime : Time
+      controller sender
+      do
+        assertMsg "Already paused or stopped" (status == Active)
+        
+        -- Settle accrued before pausing
+        let accrued = calculateAccrued this currentTime
+        
+        create this with
+          status = Paused
+          lastUpdate = currentTime
+    
+    -- Sender resumes stream
+    choice Resume : ContractId StreamAgreement
+      with currentTime : Time
+      controller sender
+      do
+        assertMsg "Not paused" (status == Paused)
+        
+        create this with
+          status = Active
+          lastUpdate = currentTime
+    
+    -- Sender stops stream permanently
+    choice Stop : (Decimal, Decimal)
+      with currentTime : Time
+      controller sender
+      do
+        let finalAccrued = calculateAccrued this currentTime
+        let refundAmount = deposited - withdrawn - finalAccrued
+        
+        -- Archive stream (returns final amounts)
+        return (finalAccrued, refundAmount)
+    
+    -- Query withdrawable balance (non-consuming)
+    nonconsuming choice GetWithdrawable : Decimal
+      with currentTime : Time
+      controller receiver
+      do
+        return (calculateAccrued this currentTime)
+    
+    -- Query stream info (non-consuming)
+    nonconsuming choice GetStreamInfo : (Decimal, Decimal, StreamStatus)
+      with currentTime : Time
+      controller sender, receiver
+      do
+        let withdrawable = calculateAccrued this currentTime
+        let totalStreamed = withdrawn + withdrawable
+        return (withdrawable, totalStreamed, status)
+
+-- Stream factory (creates streams)
+template StreamFactory
+  with
+    admin         : Party
+    nextStreamId  : Int
+    users         : [Party]  -- Users who can create streams
+  where
+    signatory admin
+    observer users
+    
+    nonconsuming choice CreateStream : ContractId StreamAgreement
+      with
+        sender         : Party
+        receiver       : Party
+        flowRate       : Decimal
+        initialDeposit : Decimal
+        currentTime    : Time
+      controller sender
+      do
+        assertMsg "Invalid flow rate" (flowRate > 0.0)
+        assertMsg "Invalid deposit" (initialDeposit > 0.0)
+        
+        -- Create stream (sender signs)
+        stream <- create StreamAgreement with
+          streamId = nextStreamId
+          sender = sender
+          receiver = receiver
+          admin = admin
+          flowRate = flowRate
+          startTime = currentTime
+          lastUpdate = currentTime
+          deposited = initialDeposit
+          withdrawn = 0.0
+          status = Active
+        
+        return stream
+
+-- Integrated stream creation with token deposit
+template StreamProposal
+  with
+    proposalId     : Int
+    sender         : Party
+    receiver       : Party
+    flowRate       : Decimal
+    depositAmount  : Decimal
+    tokenCid       : ContractId GrowToken
+    factoryCid     : ContractId StreamFactory
+  where
+    signatory sender
+    observer receiver
+    
+    -- Receiver accepts and stream starts
+    choice AcceptStream : ContractId StreamAgreement
+      with currentTime : Time
+      controller receiver
+      do
+        -- Verify token ownership and amount
+        token <- fetch tokenCid
+        assertMsg "Sender must own token" (token.owner == sender)
+        assertMsg "Insufficient token deposit" (token.amount >= depositAmount)
+        
+        -- Archive the token (it's now locked in stream)
+        archive tokenCid
+        
+        -- Create stream via factory (both parties authorize)
+        stream <- exercise factoryCid CreateStream with
+          sender = sender
+          receiver = receiver
+          flowRate = flowRate
+          initialDeposit = depositAmount
+          currentTime = currentTime
+        
+        return stream
+    
+    -- Sender cancels proposal
+    choice CancelProposal : ()
+      controller sender
+      do
+        return ()

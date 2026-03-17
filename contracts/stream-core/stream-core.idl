@@ -1,0 +1,104 @@
+// GrowStreams V2 — StreamCore IDL
+// Core streaming state machine: create/update/stop streams with per-second accounting
+
+type Stream = struct {
+  id: u64,
+  sender: actor_id,
+  receiver: actor_id,
+  token: actor_id,
+  flow_rate: u128,
+  start_time: u64,
+  last_update: u64,
+  deposited: u128,
+  withdrawn: u128,
+  streamed: u128,
+  status: StreamStatus,
+};
+
+type StreamStatus = enum {
+  Active,
+  Paused,
+  Stopped,
+};
+
+type Config = struct {
+  admin: actor_id,
+  min_buffer_seconds: u64,
+  next_stream_id: u64,
+};
+
+constructor {
+  New : (admin: actor_id, min_buffer_seconds: u64);
+};
+
+service StreamService {
+  // --- Mutations ---
+  CreateStream : (receiver: actor_id, token: actor_id, flow_rate: u128, initial_deposit: u128) -> result (u64, str);
+  UpdateStream : (stream_id: u64, new_flow_rate: u128) -> result (null, str);
+  StopStream : (stream_id: u64) -> result (null, str);
+  PauseStream : (stream_id: u64) -> result (null, str);
+  ResumeStream : (stream_id: u64) -> result (null, str);
+  Deposit : (stream_id: u64, amount: u128) -> result (null, str);
+  Withdraw : (stream_id: u64) -> result (u128, str);
+  Liquidate : (stream_id: u64) -> result (null, str);
+
+  // --- Queries ---
+  query GetStream : (stream_id: u64) -> opt Stream;
+  query GetWithdrawableBalance : (stream_id: u64) -> u128;
+  query GetRemainingBuffer : (stream_id: u64) -> u128;
+  query GetSenderStreams : (sender: actor_id) -> vec u64;
+  query GetReceiverStreams : (receiver: actor_id) -> vec u64;
+  query TotalStreams : () -> u64;
+  query ActiveStreams : () -> u64;
+  query GetConfig : () -> Config;
+
+  // --- Events ---
+  events {
+    StreamCreated: struct {
+      id: u64,
+      sender: actor_id,
+      receiver: actor_id,
+      token: actor_id,
+      flow_rate: u128,
+      start_time: u64,
+      initial_deposit: u128,
+    };
+    StreamUpdated: struct {
+      id: u64,
+      old_flow_rate: u128,
+      new_flow_rate: u128,
+      updated_at: u64,
+    };
+    StreamStopped: struct {
+      id: u64,
+      stopped_at: u64,
+      sender_refund: u128,
+      total_streamed: u128,
+    };
+    StreamPaused: struct {
+      id: u64,
+      paused_at: u64,
+    };
+    StreamResumed: struct {
+      id: u64,
+      resumed_at: u64,
+    };
+    Withdrawn: struct {
+      id: u64,
+      receiver: actor_id,
+      amount: u128,
+      timestamp: u64,
+    };
+    Deposited: struct {
+      id: u64,
+      sender: actor_id,
+      amount: u128,
+      new_buffer: u128,
+    };
+    StreamLiquidated: struct {
+      id: u64,
+      liquidated_at: u64,
+      shortfall: u128,
+    };
+  }
+};

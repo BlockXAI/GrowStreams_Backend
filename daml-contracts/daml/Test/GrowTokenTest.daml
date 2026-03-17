@@ -1,0 +1,459 @@
+-- daml/Test/GrowTokenTest.daml
+-- Week 3-4: Comprehensive Test Suite for GrowToken
+module Test.GrowTokenTest where
+
+import Daml.Script
+import GrowToken
+
+-- Test 1: Token Transfer
+testTokenTransfer : Script ()
+testTokenTransfer = script do
+  -- Allocate parties
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  bob <- allocateParty "Bob"
+  
+  -- Mint tokens to Alice
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  aliceToken <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 1000.0
+  
+  -- Alice transfers 100 to Bob
+  (bobToken, aliceRemainder) <- submit alice do
+    exerciseCmd aliceToken Transfer with
+      newOwner = bob
+      transferAmount = 100.0
+  
+  -- Verify Bob's balance
+  Some token <- queryContractId bob bobToken
+  assertMsg "Bob should have 100 GROW" (token.amount == 100.0)
+  assertMsg "Bob should be owner" (token.owner == bob)
+  
+  -- Verify Alice's remainder
+  case aliceRemainder of
+    Some remainderCid -> do
+      Some remainder <- queryContractId alice remainderCid
+      assertMsg "Alice should have 900 GROW" (remainder.amount == 900.0)
+      assertMsg "Alice should be owner" (remainder.owner == alice)
+    None -> abort "Alice should have remainder"
+  
+  return ()
+
+-- Test 2: Token Split
+testTokenSplit : Script ()
+testTokenSplit = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  aliceToken <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 1000.0
+  
+  -- Split into 400 and 600
+  (part1, part2) <- submit alice do
+    exerciseCmd aliceToken Split with
+      splitAmount = 400.0
+  
+  -- Verify splits
+  Some token1 <- queryContractId alice part1
+  Some token2 <- queryContractId alice part2
+  
+  assertMsg "Part 1 should be 400" (token1.amount == 400.0)
+  assertMsg "Part 2 should be 600" (token2.amount == 600.0)
+  assertMsg "Both parts owned by Alice" (token1.owner == alice && token2.owner == alice)
+  
+  return ()
+
+-- Test 3: Token Merge
+testTokenMerge : Script ()
+testTokenMerge = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  token1 <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 300.0
+  
+  token2 <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 700.0
+  
+  -- Merge tokens
+  merged <- submit alice do
+    exerciseCmd token1 Merge with
+      otherCid = token2
+  
+  -- Verify merged amount
+  Some mergedToken <- queryContractId alice merged
+  assertMsg "Merged should be 1000" (mergedToken.amount == 1000.0)
+  assertMsg "Alice should own merged token" (mergedToken.owner == alice)
+  
+  return ()
+
+-- Test 4: Token Burn
+testTokenBurn : Script ()
+testTokenBurn = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  aliceToken <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 1000.0
+  
+  -- Burn 300 tokens
+  remainingOpt <- submit alice do
+    exerciseCmd aliceToken Burn with
+      burnAmount = 300.0
+  
+  -- Verify remaining
+  case remainingOpt of
+    Some remainingCid -> do
+      Some remaining <- queryContractId alice remainingCid
+      assertMsg "Should have 700 remaining" (remaining.amount == 700.0)
+    None -> abort "Should have remaining tokens"
+  
+  return ()
+
+-- Test 5: Burn All Tokens
+testBurnAll : Script ()
+testBurnAll = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  aliceToken <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 100.0
+  
+  -- Burn all tokens
+  remainingOpt <- submit alice do
+    exerciseCmd aliceToken Burn with
+      burnAmount = 100.0
+  
+  -- Verify no remaining
+  case remainingOpt of
+    Some _ -> abort "Should have no remaining tokens"
+    None -> return ()
+  
+  return ()
+
+-- Test 6: Allowance and TransferFrom
+testAllowance : Script ()
+testAllowance = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  vault <- allocateParty "Vault"
+  
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  aliceToken <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 1000.0
+  
+  -- Alice approves vault to spend 500
+  allowance <- submit alice do
+    exerciseCmd aliceToken Approve with
+      spender = vault
+      allowanceAmount = 500.0
+  
+  -- Vault transfers 200 from Alice's allowance to itself
+  (vaultToken, remainingAllowance) <- submit vault do
+    exerciseCmd allowance TransferFrom with
+      transferAmount = 200.0
+      recipient = vault
+  
+  -- Verify vault received tokens
+  Some token <- queryContractId vault vaultToken
+  assertMsg "Vault should have 200 GROW" (token.amount == 200.0)
+  assertMsg "Vault should be owner" (token.owner == vault)
+  
+  -- Verify remaining allowance
+  case remainingAllowance of
+    Some allowanceCid -> do
+      Some allow <- queryContractId vault allowanceCid
+      assertMsg "Remaining allowance should be 300" (allow.amount == 300.0)
+    None -> abort "Should have remaining allowance"
+  
+  return ()
+
+-- Test 7: Transfer All (No Remainder)
+testTransferAll : Script ()
+testTransferAll = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  bob <- allocateParty "Bob"
+  
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  aliceToken <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 100.0
+  
+  -- Alice transfers all to Bob
+  (bobToken, aliceRemainder) <- submit alice do
+    exerciseCmd aliceToken Transfer with
+      newOwner = bob
+      transferAmount = 100.0
+  
+  -- Verify Bob got all
+  Some token <- queryContractId bob bobToken
+  assertMsg "Bob should have 100 GROW" (token.amount == 100.0)
+  
+  -- Verify no remainder
+  case aliceRemainder of
+    Some _ -> abort "Should have no remainder"
+    None -> return ()
+  
+  return ()
+
+-- Test 8: Batch Minting
+testBatchMint : Script ()
+testBatchMint = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  bob <- allocateParty "Bob"
+  charlie <- allocateParty "Charlie"
+  
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  -- Mint to multiple recipients
+  tokens <- submit admin do
+    exerciseCmd faucet MintBatch with
+      recipients = [(alice, 100.0), (bob, 200.0), (charlie, 300.0)]
+  
+  -- Verify each recipient
+  assertMsg "Should have 3 tokens" (length tokens == 3)
+  
+  let [aliceTokenCid, bobTokenCid, charlieTokenCid] = tokens
+  
+  Some aliceToken <- queryContractId alice aliceTokenCid
+  assertMsg "Alice should have 100" (aliceToken.amount == 100.0)
+  
+  Some bobToken <- queryContractId bob bobTokenCid
+  assertMsg "Bob should have 200" (bobToken.amount == 200.0)
+  
+  Some charlieToken <- queryContractId charlie charlieTokenCid
+  assertMsg "Charlie should have 300" (charlieToken.amount == 300.0)
+  
+  return ()
+
+-- Test 9: Cancel Allowance
+testCancelAllowance : Script ()
+testCancelAllowance = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  vault <- allocateParty "Vault"
+  
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  aliceToken <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 1000.0
+  
+  -- Alice approves vault
+  allowance <- submit alice do
+    exerciseCmd aliceToken Approve with
+      spender = vault
+      allowanceAmount = 500.0
+  
+  -- Alice cancels allowance
+  submit alice do
+    exerciseCmd allowance CancelAllowance
+  
+  return ()
+
+-- Test 10: Multiple Transfers Chain
+testTransferChain : Script ()
+testTransferChain = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  bob <- allocateParty "Bob"
+  charlie <- allocateParty "Charlie"
+  
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  -- Mint to Alice
+  aliceToken <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 1000.0
+  
+  -- Alice → Bob (300)
+  (bobToken, aliceRemainder1) <- submit alice do
+    exerciseCmd aliceToken Transfer with
+      newOwner = bob
+      transferAmount = 300.0
+  
+  -- Bob → Charlie (100)
+  (charlieToken, bobRemainder) <- submit bob do
+    exerciseCmd bobToken Transfer with
+      newOwner = charlie
+      transferAmount = 100.0
+  
+  -- Verify final balances
+  Some charlieBalance <- queryContractId charlie charlieToken
+  assertMsg "Charlie should have 100" (charlieBalance.amount == 100.0)
+  
+  case bobRemainder of
+    Some bobCid -> do
+      Some bobBalance <- queryContractId bob bobCid
+      assertMsg "Bob should have 200" (bobBalance.amount == 200.0)
+    None -> abort "Bob should have remainder"
+  
+  case aliceRemainder1 of
+    Some aliceCid -> do
+      Some aliceBalance <- queryContractId alice aliceCid
+      assertMsg "Alice should have 700" (aliceBalance.amount == 700.0)
+    None -> abort "Alice should have remainder"
+  
+  return ()
+
+-- Test 11: Edge Case - Insufficient Balance Transfer
+testInsufficientBalance : Script ()
+testInsufficientBalance = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  bob <- allocateParty "Bob"
+  
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  aliceToken <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 100.0
+  
+  -- Try to transfer more than balance (should fail)
+  submitMustFail alice do
+    exerciseCmd aliceToken Transfer with
+      newOwner = bob
+      transferAmount = 200.0
+  
+  return ()
+
+-- Test 12: Edge Case - Zero Amount Transfer
+testZeroTransfer : Script ()
+testZeroTransfer = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  bob <- allocateParty "Bob"
+  
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  aliceToken <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 100.0
+  
+  -- Try to transfer zero (should fail)
+  submitMustFail alice do
+    exerciseCmd aliceToken Transfer with
+      newOwner = bob
+      transferAmount = 0.0
+  
+  return ()
+
+-- Test 13: Edge Case - Split Equal to Total
+testSplitEqualTotal : Script ()
+testSplitEqualTotal = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  aliceToken <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 100.0
+  
+  -- Try to split equal to total (should fail)
+  submitMustFail alice do
+    exerciseCmd aliceToken Split with
+      splitAmount = 100.0
+  
+  return ()
+
+-- Test 14: Edge Case - Merge Different Owners
+testMergeDifferentOwners : Script ()
+testMergeDifferentOwners = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  bob <- allocateParty "Bob"
+  
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  aliceToken <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 100.0
+  
+  bobToken <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = bob
+      amount = 200.0
+  
+  -- Try to merge tokens with different owners (should fail)
+  submitMustFail alice do
+    exerciseCmd aliceToken Merge with
+      otherCid = bobToken
+  
+  return ()
+
+-- Test 15: Edge Case - Exceed Allowance
+testExceedAllowance : Script ()
+testExceedAllowance = script do
+  admin <- allocateParty "Admin"
+  alice <- allocateParty "Alice"
+  vault <- allocateParty "Vault"
+  
+  faucet <- submit admin do
+    createCmd Faucet with admin = admin
+  
+  aliceToken <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 1000.0
+  
+  allowance <- submit alice do
+    exerciseCmd aliceToken Approve with
+      spender = vault
+      allowanceAmount = 100.0
+  
+  -- Try to transfer more than allowance (should fail)
+  submitMustFail vault do
+    exerciseCmd allowance TransferFrom with
+      transferAmount = 200.0
+      recipient = vault
+  
+  return ()

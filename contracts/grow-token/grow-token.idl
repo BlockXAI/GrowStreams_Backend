@@ -1,0 +1,32 @@
+// GrowStreams — GROW Fungible Token IDL
+// Standard VFT (Vara Fungible Token) for the GrowStreams protocol
+
+type TokenMeta = struct {
+  name: str,
+  symbol: str,
+  decimals: u8,
+  total_supply: u128,
+  admin: actor_id,
+};
+
+constructor {
+  New : ();
+};
+
+service VftService {
+  // --- Mutations ---
+  Transfer : (to: actor_id, amount: u128) -> bool;
+  Approve : (spender: actor_id, amount: u128) -> bool;
+  TransferFrom : (from: actor_id, to: actor_id, amount: u128) -> bool;
+  Mint : (to: actor_id, amount: u128) -> null;
+  Burn : (amount: u128) -> null;
+
+  // --- Queries ---
+  query BalanceOf : (account: actor_id) -> u128;
+  query Allowance : (owner: actor_id, spender: actor_id) -> u128;
+  query TotalSupply : () -> u128;
+  query Name : () -> str;
+  query Symbol : () -> str;
+  query Decimals : () -> u8;
+  query GetMeta : () -> TokenMeta;
+};

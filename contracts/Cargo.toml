@@ -1,0 +1,17 @@
+[workspace]
+members = [
+    "stream-core",
+    "token-vault",
+    "splits-router",
+    "permission-manager",
+    "adapters/bounty-adapter",
+    "identity-registry",
+    "grow-token",
+]
+resolver = "2"
+
+[workspace.dependencies]
+sails-rs = "0.6"
+gstd = "1.6"
+parity-scale-codec = { version = "3", default-features = false, features = ["derive"] }
+scale-info = { version = "2", default-features = false, features = ["derive"] }

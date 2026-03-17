@@ -1,0 +1,177 @@
+-- daml/GrowToken.daml
+-- Week 3-4: Token Contract Implementation
+-- Based on Canton_Ginie's asset_transfer.daml pattern
+module GrowToken where
+
+-- Main token template
+template GrowToken
+  with
+    owner    : Party
+    issuer   : Party
+    amount   : Decimal
+    symbol   : Text
+    decimals : Int
+  where
+    signatory issuer
+    observer owner
+    
+    ensure amount > 0.0 && symbol == "GROW" && decimals == 12
+    
+    -- Transfer tokens
+    choice Transfer : (ContractId GrowToken, Optional (ContractId GrowToken))
+      with
+        newOwner       : Party
+        transferAmount : Decimal
+      controller owner
+      do
+        assertMsg "Insufficient balance" (amount >= transferAmount)
+        assertMsg "Invalid amount" (transferAmount > 0.0)
+        
+        -- Create token for recipient
+        recipientToken <- create this with
+          owner = newOwner
+          amount = transferAmount
+        
+        -- Create remainder for sender (if any)
+        remainder <- if amount > transferAmount then do
+          senderToken <- create this with
+            amount = amount - transferAmount
+          return (Some senderToken)
+        else
+          return None
+        
+        return (recipientToken, remainder)
+    
+    -- Split tokens
+    choice Split : (ContractId GrowToken, ContractId GrowToken)
+      with splitAmount : Decimal
+      controller owner
+      do
+        assertMsg "Split amount must be less than total" (splitAmount < amount)
+        assertMsg "Split amount must be positive" (splitAmount > 0.0)
+        part1 <- create this with amount = splitAmount
+        part2 <- create this with amount = amount - splitAmount
+        return (part1, part2)
+    
+    -- Merge tokens
+    choice Merge : ContractId GrowToken
+      with otherCid : ContractId GrowToken
+      controller owner
+      do
+        other <- fetch otherCid
+        assertMsg "Same owner required" (other.owner == owner)
+        assertMsg "Same issuer required" (other.issuer == issuer)
+        assertMsg "Same symbol required" (other.symbol == symbol)
+        archive otherCid
+        create this with amount = amount + other.amount
+    
+    -- Burn tokens
+    choice Burn : Optional (ContractId GrowToken)
+      with burnAmount : Decimal
+      controller owner
+      do
+        assertMsg "Insufficient balance" (amount >= burnAmount)
+        assertMsg "Burn amount must be positive" (burnAmount > 0.0)
+        
+        if amount > burnAmount then do
+          remaining <- create this with amount = amount - burnAmount
+          return (Some remaining)
+        else
+          return None
+    
+    -- Approve spender (creates Allowance)
+    choice Approve : ContractId Allowance
+      with
+        spender        : Party
+        allowanceAmount : Decimal
+      controller owner
+      do
+        assertMsg "Allowance must be positive" (allowanceAmount > 0.0)
+        assertMsg "Insufficient balance for allowance" (amount >= allowanceAmount)
+        
+        create Allowance with
+          tokenOwner = owner
+          spender = spender
+          amount = allowanceAmount
+          issuer = issuer
+
+-- Allowance for vault deposits
+template Allowance
+  with
+    tokenOwner : Party
+    spender    : Party
+    amount     : Decimal
+    issuer     : Party
+  where
+    signatory tokenOwner, issuer
+    observer  spender
+    
+    ensure amount > 0.0
+    
+    choice TransferFrom : (ContractId GrowToken, Optional (ContractId Allowance))
+      with
+        transferAmount : Decimal
+        recipient      : Party
+      controller spender
+      do
+        assertMsg "Exceeds allowance" (amount >= transferAmount)
+        assertMsg "Transfer amount must be positive" (transferAmount > 0.0)
+        
+        -- Create token for recipient
+        token <- create GrowToken with
+          owner = recipient
+          issuer = issuer
+          amount = transferAmount
+          symbol = "GROW"
+          decimals = 12
+        
+        -- Update allowance
+        newAllowance <- if amount > transferAmount then do
+          updated <- create this with amount = amount - transferAmount
+          return (Some updated)
+        else
+          return None
+        
+        return (token, newAllowance)
+    
+    -- Cancel allowance
+    choice CancelAllowance : ()
+      controller tokenOwner
+      do
+        return ()
+
+-- Faucet for testing (admin only)
+template Faucet
+  with
+    admin : Party
+  where
+    signatory admin
+    
+    nonconsuming choice Mint : ContractId GrowToken
+      with
+        recipient : Party
+        amount    : Decimal
+      controller admin
+      do
+        assertMsg "Mint amount must be positive" (amount > 0.0)
+        create GrowToken with
+          owner = recipient
+          issuer = admin
+          amount = amount
+          symbol = "GROW"
+          decimals = 12
+    
+    -- Mint to multiple recipients
+    nonconsuming choice MintBatch : [ContractId GrowToken]
+      with
+        recipients : [(Party, Decimal)]
+      controller admin
+      do
+        forA recipients $ \(recipient, amt) -> do
+          assertMsg "Batch mint amount must be positive" (amt > 0.0)
+          create GrowToken with
+            owner = recipient
+            issuer = admin
+            amount = amt
+            symbol = "GROW"
+            decimals = 12

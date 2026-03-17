@@ -1,0 +1,30 @@
+// GrowStreams Deployment Script for Canton
+// Run with: canton -c canton-config.conf --bootstrap deploy-growstreams.canton
+
+// Upload DAR file
+val darPath = ".daml/dist/growstreams-1.0.0.dar"
+participant1.dars.upload(darPath)
+
+// Allocate parties
+val admin = participant1.parties.enable("Admin")
+val alice = participant1.parties.enable("Alice")
+val bob = participant1.parties.enable("Bob")
+
+println(s"✅ Parties allocated:")
+println(s"   Admin: ${admin}")
+println(s"   Alice: ${alice}")
+println(s"   Bob: ${bob}")
+
+// Connect participant to domain
+participant1.domains.connect_local(local)
+
+println("✅ GrowStreams DAR uploaded successfully!")
+println("✅ Participant connected to domain")
+println("")
+println("🎉 Ready to test streaming on Canton!")
+println("")
+println("Next steps:")
+println("1. Use Daml Navigator or JSON API to create contracts")
+println("2. Create Faucet contract to mint tokens")
+println("3. Create StreamFactory contract")
+println("4. Test live streaming!")
