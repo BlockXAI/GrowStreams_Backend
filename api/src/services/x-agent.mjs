@@ -224,12 +224,18 @@ async function processTweet(tweet, authorUsername, authorMetrics) {
   const velocity = calculateEngagementVelocity(likes, retweets, replies, followerCount);
   const engagementScore = engagementToScore(velocity);
 
-  // 7. Call LLM scorer
-  const llmResult = await scoreContent(
-    tweetText, isThread, threadLength, hasMedia,
-    { likes, retweets, replies },
-    followerCount
-  );
+  // 7. Call LLM scorer (with try/catch)
+  let llmResult;
+  try {
+    llmResult = await scoreContent(
+      tweetText, isThread, threadLength, hasMedia,
+      { likes, retweets, replies },
+      followerCount
+    );
+  } catch (err) {
+    console.error(`[x-agent] LLM scoring failed for tweet ${tweetId}: ${err.message}`);
+    return;
+  }
 
   // 8. Combined score: 65% LLM + 35% engagement
   const combinedScore = Math.round(llmResult.score * 0.65 + engagementScore * 0.35);
@@ -254,12 +260,20 @@ async function processTweet(tweet, authorUsername, authorMetrics) {
       }
     );
 
-    await awardXP(participant.wallet, xpAmount, 'INITIAL_AWARD', contribution.id);
+    try {
+      await awardXP(participant.wallet, xpAmount, 'INITIAL_AWARD', contribution.id);
+    } catch (err) {
+      console.error(`[x-agent] XP award failed for tweet ${tweetId}: ${err.message}`);
+    }
 
     // Thread bonus as separate event if applicable
     if (isThread && threadLength >= 5) {
-      const threadBonusXP = Math.round(getInitialXP(combinedScore, 'CONTENT') * 0.3);
-      await awardXP(participant.wallet, threadBonusXP, 'THREAD_BONUS', contribution.id);
+      try {
+        const threadBonusXP = Math.round(getInitialXP(combinedScore, 'CONTENT') * 0.3);
+        await awardXP(participant.wallet, threadBonusXP, 'THREAD_BONUS', contribution.id);
+      } catch (err) {
+        console.error(`[x-agent] Thread bonus XP failed for tweet ${tweetId}: ${err.message}`);
+      }
     }
 
     const rank = await getParticipantRank(participant.wallet);
@@ -425,46 +439,56 @@ export async function startStream() {
     return;
   }
 
-  // Start filtered stream
-  try {
-    const stream = await client.v2.searchStream({
-      'tweet.fields': 'public_metrics,author_id,referenced_tweets,in_reply_to_user_id,attachments,created_at',
-      'user.fields': 'username,public_metrics',
-      'expansions': 'author_id,attachments.media_keys',
-    });
+  // Start filtered stream with retry on 503
+  const maxStreamAttempts = 2;
+  for (let streamAttempt = 1; streamAttempt <= maxStreamAttempts; streamAttempt++) {
+    try {
+      const stream = await client.v2.searchStream({
+        'tweet.fields': 'public_metrics,author_id,referenced_tweets,in_reply_to_user_id,attachments,created_at',
+        'user.fields': 'username,public_metrics',
+        'expansions': 'author_id,attachments.media_keys',
+      });
 
-    // Auto-reconnect on stream errors
-    stream.autoReconnect = true;
-    stream.autoReconnectRetries = 5;
+      // Auto-reconnect on stream errors
+      stream.autoReconnect = true;
+      stream.autoReconnectRetries = 5;
 
-    stream.on('data', async (event) => {
-      try {
-        const tweet = event.data;
-        if (!tweet) return;
+      stream.on('data', async (event) => {
+        try {
+          const tweet = event.data;
+          if (!tweet) return;
 
-        // Find author from includes
-        const author = event.includes?.users?.find(u => u.id === tweet.author_id);
-        if (!author) {
-          console.warn(`[x-agent] No author data for tweet ${tweet.id}`);
-          return;
+          // Find author from includes
+          const author = event.includes?.users?.find(u => u.id === tweet.author_id);
+          if (!author) {
+            console.warn(`[x-agent] No author data for tweet ${tweet.id}`);
+            return;
+          }
+
+          await processTweet(tweet, author.username, author.public_metrics);
+        } catch (err) {
+          console.error(`[x-agent] Error processing stream event: ${err.message}`);
         }
+      });
 
-        await processTweet(tweet, author.username, author.public_metrics);
-      } catch (err) {
-        console.error(`[x-agent] Error processing stream event: ${err.message}`);
+      stream.on('error', (err) => {
+        console.error(`[x-agent] Stream error: ${err.message}`);
+      });
+
+      stream.on('reconnected', () => {
+        console.log('[x-agent] Stream reconnected');
+      });
+
+      console.log('[x-agent] Filtered stream started, listening for GrowStreams mentions');
+      return; // success — exit the retry loop
+    } catch (err) {
+      const is503 = err.message?.includes('503') || err.code === 503;
+      console.error(`[x-agent] Failed to start stream (attempt ${streamAttempt}/${maxStreamAttempts}): ${err.message}`);
+      if (is503 && streamAttempt < maxStreamAttempts) {
+        console.log(`[x-agent] 503 — retrying stream in 5s...`);
+        await new Promise(r => setTimeout(r, 5000));
+        continue;
       }
-    });
-
-    stream.on('error', (err) => {
-      console.error(`[x-agent] Stream error: ${err.message}`);
-    });
-
-    stream.on('reconnected', () => {
-      console.log('[x-agent] Stream reconnected');
-    });
-
-    console.log('[x-agent] Filtered stream started, listening for GrowStreams mentions');
-  } catch (err) {
-    console.error(`[x-agent] Failed to start stream: ${err.message}`);
+    }
   }
 }
