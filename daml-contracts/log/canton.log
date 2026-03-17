@@ -863,3 +863,5 @@ participants {
 ) with ts=EffectiveTime(2026-03-17T12:43:21.138140Z) (epsilon=250 ms)
 2026-03-17 18:19:16,393 [daml.index.db.threadpool.connection.indexer-13] INFO  c.d.c.p.i.MeteringAggregator:participant=sandbox - Aggregating transaction metering for LedgerMeteringEnd(Offset(Bytes()),2026-03-17T12:00:00Z)
 2026-03-17 18:19:16,398 [daml.index.db.threadpool.connection.indexer-13] INFO  c.d.c.p.i.MeteringAggregator:participant=sandbox - Aggregating transaction metering completed up to LedgerMeteringEnd(Offset(Bytes()),2026-03-17T12:00:00Z)
+2026-03-17 18:31:16,384 [daml.index.db.threadpool.connection.indexer-15] INFO  c.d.c.p.i.MeteringAggregator:participant=sandbox - Aggregating transaction metering for LedgerMeteringEnd(Offset(Bytes()),2026-03-17T13:00:00Z)
+2026-03-17 18:31:16,386 [daml.index.db.threadpool.connection.indexer-15] INFO  c.d.c.p.i.MeteringAggregator:participant=sandbox - Aggregating transaction metering completed up to LedgerMeteringEnd(Offset(Bytes()),2026-03-17T13:00:00Z)

@@ -25,7 +25,7 @@ testStreamLifecycle = script do
   
   -- Alice creates stream to Bob (0.1 GROW/second, 100 GROW deposit)
   let startTime = time (date 2026 Mar 11) 0 0 0
-  stream <- submit alice do
+  (_, stream) <- submit alice do
     exerciseCmd factory CreateStream with
       sender = alice
       receiver = bob
@@ -74,7 +74,7 @@ testStreamPauseResume = script do
       users = [alice, bob]
   
   let startTime = time (date 2026 Mar 11) 0 0 0
-  stream <- submit alice do
+  (_, stream) <- submit alice do
     exerciseCmd factory CreateStream with
       sender = alice
       receiver = bob
@@ -125,7 +125,7 @@ testStreamTopUp = script do
       users = [alice, bob]
   
   let startTime = time (date 2026 Mar 11) 0 0 0
-  stream <- submit alice do
+  (_, stream) <- submit alice do
     exerciseCmd factory CreateStream with
       sender = alice
       receiver = bob
@@ -169,7 +169,7 @@ testGetWithdrawable = script do
       users = [alice, bob]
   
   let startTime = time (date 2026 Mar 11) 0 0 0
-  stream <- submit alice do
+  (_, stream) <- submit alice do
     exerciseCmd factory CreateStream with
       sender = alice
       receiver = bob
@@ -211,7 +211,7 @@ testGetStreamInfo = script do
       users = [alice, bob]
   
   let startTime = time (date 2026 Mar 11) 0 0 0
-  stream <- submit alice do
+  (_, stream) <- submit alice do
     exerciseCmd factory CreateStream with
       sender = alice
       receiver = bob
@@ -222,8 +222,8 @@ testGetStreamInfo = script do
   -- Wait 100 seconds
   let queryTime = addRelTime startTime (seconds 100)
   
-  -- Query stream info
-  (withdrawable, totalStreamed, status) <- submit alice do
+  -- Query stream info (requires both sender and receiver)
+  (withdrawable, totalStreamed, status) <- submitMulti [alice, bob] [] do
     exerciseCmd stream GetStreamInfo with
       currentTime = queryTime
   
@@ -247,7 +247,7 @@ testStreamDepletion = script do
       users = [alice, bob]
   
   let startTime = time (date 2026 Mar 11) 0 0 0
-  stream <- submit alice do
+  (_, stream) <- submit alice do
     exerciseCmd factory CreateStream with
       sender = alice
       receiver = bob
@@ -281,7 +281,7 @@ testMultipleWithdrawals = script do
       users = [alice, bob]
   
   let startTime = time (date 2026 Mar 11) 0 0 0
-  stream <- submit alice do
+  (_, stream) <- submit alice do
     exerciseCmd factory CreateStream with
       sender = alice
       receiver = bob
@@ -329,7 +329,7 @@ testHighFlowRate = script do
       users = [alice, bob]
   
   let startTime = time (date 2026 Mar 11) 0 0 0
-  stream <- submit alice do
+  (_, stream) <- submit alice do
     exerciseCmd factory CreateStream with
       sender = alice
       receiver = bob
@@ -365,7 +365,7 @@ testFactoryIdIncrement = script do
   let startTime = time (date 2026 Mar 11) 0 0 0
   
   -- Create first stream (ID should be 1)
-  stream1 <- submit alice do
+  (factory2, stream1) <- submit alice do
     exerciseCmd factory CreateStream with
       sender = alice
       receiver = bob
@@ -377,8 +377,8 @@ testFactoryIdIncrement = script do
   assertMsg "First stream should have ID 1" (s1.streamId == 1)
   
   -- Create second stream (ID should be 2)
-  stream2 <- submit alice do
-    exerciseCmd factory CreateStream with
+  (factory3, stream2) <- submit alice do
+    exerciseCmd factory2 CreateStream with
       sender = alice
       receiver = charlie
       flowRate = 0.2
@@ -404,7 +404,7 @@ testZeroAccrualWhenPaused = script do
       users = [alice, bob]
   
   let startTime = time (date 2026 Mar 11) 0 0 0
-  stream <- submit alice do
+  (_, stream) <- submit alice do
     exerciseCmd factory CreateStream with
       sender = alice
       receiver = bob
@@ -443,7 +443,7 @@ testNoWithdrawalWhenZero = script do
       users = [alice, bob]
   
   let startTime = time (date 2026 Mar 11) 0 0 0
-  stream <- submit alice do
+  (_, stream) <- submit alice do
     exerciseCmd factory CreateStream with
       sender = alice
       receiver = bob
@@ -472,7 +472,7 @@ testCannotPausePaused = script do
       users = [alice, bob]
   
   let startTime = time (date 2026 Mar 11) 0 0 0
-  stream <- submit alice do
+  (_, stream) <- submit alice do
     exerciseCmd factory CreateStream with
       sender = alice
       receiver = bob
@@ -506,7 +506,7 @@ testCannotResumeActive = script do
       users = [alice, bob]
   
   let startTime = time (date 2026 Mar 11) 0 0 0
-  stream <- submit alice do
+  (_, stream) <- submit alice do
     exerciseCmd factory CreateStream with
       sender = alice
       receiver = bob
