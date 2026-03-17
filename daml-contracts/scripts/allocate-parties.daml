@@ -1,0 +1,70 @@
+-- Script to allocate parties and create initial contracts for Navigator demo
+module AllocateParties where
+
+import Daml.Script
+import GrowToken
+import StreamCore
+
+allocatePartiesAndSetup : Script ()
+allocatePartiesAndSetup = script do
+  -- Allocate parties
+  admin <- allocatePartyWithHint "Admin" (PartyIdHint "Admin")
+  alice <- allocatePartyWithHint "Alice" (PartyIdHint "Alice")
+  bob <- allocatePartyWithHint "Bob" (PartyIdHint "Bob")
+  
+  debug "✅ Parties allocated:"
+  debug $ "  Admin: " <> show admin
+  debug $ "  Alice: " <> show alice
+  debug $ "  Bob: " <> show bob
+  
+  -- Create Faucet (for minting tokens)
+  faucet <- submit admin do
+    createCmd Faucet with
+      admin = admin
+      users = [alice, bob]
+  
+  debug "✅ Faucet created"
+  
+  -- Mint tokens to Alice
+  aliceTokens <- submit admin do
+    exerciseCmd faucet Mint with
+      recipient = alice
+      amount = 10000.0
+  
+  debug "✅ Minted 10,000 GROW to Alice"
+  
+  -- Create StreamFactory
+  factory <- submit admin do
+    createCmd StreamFactory with
+      admin = admin
+      nextStreamId = 1
+      users = [alice, bob]
+  
+  debug "✅ StreamFactory created"
+  
+  -- Alice creates a stream to Bob
+  (newFactory, stream) <- submit alice do
+    exerciseCmd factory CreateStream with
+      sender = alice
+      receiver = bob
+      flowRate = 1.0  -- 1 GROW per second
+      initialDeposit = 1000.0
+      currentTime = time (date 2026 Mar 18) 2 30 0
+  
+  debug "✅ Stream created: Alice → Bob at 1 GROW/second"
+  debug $ "  Stream ID: 1"
+  debug $ "  Initial deposit: 1000 GROW"
+  debug $ "  Flow rate: 1 GROW/second"
+  
+  debug ""
+  debug "🎉 Canton deployment verified!"
+  debug "📊 Active contracts:"
+  debug "  - Faucet (Admin)"
+  debug "  - GrowToken (Alice: 9000 GROW)"
+  debug "  - StreamFactory (Admin)"
+  debug "  - StreamAgreement (Alice → Bob)"
+  debug ""
+  debug "🌐 Open Navigator: http://localhost:4000"
+  debug "👤 Login as: Admin, Alice, or Bob"
+  
+  return ()
