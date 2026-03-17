@@ -1,0 +1,135 @@
+-- Live Streaming Test Script for Canton Network
+-- This script demonstrates end-to-end streaming functionality
+
+module TestLiveStreaming where
+
+import Daml.Script
+import GrowToken
+import StreamCore
+
+-- Test live streaming with real parties on Canton
+testLiveStreamingOnCanton : Script ()
+testLiveStreamingOnCanton = script do
+  -- Allocate parties
+  admin <- allocatePartyWithHint "Admin" (PartyIdHint "Admin")
+  alice <- allocatePartyWithHint "Alice" (PartyIdHint "Alice")
+  bob <- allocatePartyWithHint "Bob" (PartyIdHint "Bob")
+  
+  debug "✅ Parties allocated: Admin, Alice, Bob"
+  
+  -- 1. Create Faucet (Admin)
+  faucet <- submit admin do
+    createCmd Faucet with
+      issuer = admin
+  
+  debug "✅ Faucet created"
+  
+  -- 2. Mint tokens to Alice (1000 GROW)
+  aliceToken <- submit admin do
+    exerciseCmd faucet Mint with
+      owner = alice
+      amount = 1000.0
+  
+  debug "✅ Minted 1000 GROW to Alice"
+  
+  -- 3. Create StreamFactory (Admin)
+  factory <- submit admin do
+    createCmd StreamFactory with
+      admin = admin
+      nextStreamId = 1
+      users = [alice, bob]
+  
+  debug "✅ StreamFactory created"
+  
+  -- 4. Alice creates stream to Bob (0.1 GROW/second, 100 GROW deposit)
+  let startTime = time (date 2026 Mar 17) 13 0 0
+  (factory2, stream) <- submit alice do
+    exerciseCmd factory CreateStream with
+      sender = alice
+      receiver = bob
+      flowRate = 0.1
+      initialDeposit = 100.0
+      currentTime = startTime
+  
+  debug "✅ Stream created: Alice → Bob (0.1 GROW/s, 100 GROW deposit)"
+  
+  -- 5. Wait 100 seconds (10 GROW accrued)
+  let withdrawTime = addRelTime startTime (seconds 100)
+  
+  -- 6. Bob withdraws accrued tokens
+  (stream2, withdrawn) <- submit bob do
+    exerciseCmd stream Withdraw with
+      currentTime = withdrawTime
+  
+  debug $ "✅ Bob withdrew: " <> show withdrawn <> " GROW (expected 10.0)"
+  assertMsg "Bob should withdraw 10 GROW" (withdrawn == 10.0)
+  
+  -- 7. Alice tops up with 50 more GROW
+  let topUpTime = addRelTime withdrawTime (seconds 50)
+  stream3 <- submit alice do
+    exerciseCmd stream2 TopUp with
+      additionalDeposit = 50.0
+      currentTime = topUpTime
+  
+  debug "✅ Alice topped up 50 GROW"
+  
+  -- 8. Wait 200 more seconds (20 GROW accrued)
+  let withdraw2Time = addRelTime topUpTime (seconds 200)
+  (stream4, withdrawn2) <- submit bob do
+    exerciseCmd stream3 Withdraw with
+      currentTime = withdraw2Time
+  
+  debug $ "✅ Bob withdrew: " <> show withdrawn2 <> " GROW (expected 20.0)"
+  assertMsg "Bob should withdraw 20 GROW" (withdrawn2 == 20.0)
+  
+  -- 9. Alice pauses stream
+  let pauseTime = addRelTime withdraw2Time (seconds 50)
+  stream5 <- submit alice do
+    exerciseCmd stream4 Pause with
+      currentTime = pauseTime
+  
+  debug "✅ Alice paused stream"
+  
+  -- 10. Wait 100 seconds while paused (no accrual)
+  let resumeTime = addRelTime pauseTime (seconds 100)
+  
+  -- 11. Alice resumes stream
+  stream6 <- submit alice do
+    exerciseCmd stream5 Resume with
+      currentTime = resumeTime
+  
+  debug "✅ Alice resumed stream"
+  
+  -- 12. Wait 100 more seconds (10 GROW accrued)
+  let finalWithdrawTime = addRelTime resumeTime (seconds 100)
+  (stream7, withdrawn3) <- submit bob do
+    exerciseCmd stream6 Withdraw with
+      currentTime = finalWithdrawTime
+  
+  debug $ "✅ Bob withdrew: " <> show withdrawn3 <> " GROW (expected 10.0)"
+  assertMsg "Bob should withdraw 10 GROW after resume" (withdrawn3 == 10.0)
+  
+  -- 13. Alice stops stream
+  let stopTime = addRelTime finalWithdrawTime (seconds 100)
+  (receiverFinal, refund) <- submit alice do
+    exerciseCmd stream7 Stop with
+      currentTime = stopTime
+  
+  debug $ "✅ Stream stopped - Receiver gets: " <> show receiverFinal <> " GROW, Refund: " <> show refund <> " GROW"
+  
+  -- Total: 100 initial + 50 topup = 150 GROW deposited
+  -- Withdrawn: 10 + 20 + 10 = 40 GROW
+  -- Final accrued: 10 GROW (100s after last withdraw)
+  -- Receiver should get: 10 GROW
+  -- Refund should be: 150 - 40 - 10 = 100 GROW
+  
+  assertMsg "Receiver should get 10 GROW" (receiverFinal == 10.0)
+  assertMsg "Refund should be 100 GROW" (refund == 100.0)
+  
+  debug "🎉 LIVE STREAMING TEST COMPLETE!"
+  debug "✅ All streaming operations working correctly"
+  debug "✅ Total deposited: 150 GROW"
+  debug "✅ Total withdrawn: 40 GROW"
+  debug "✅ Final settlement: 10 GROW to receiver, 100 GROW refund to sender"
+  
+  return ()

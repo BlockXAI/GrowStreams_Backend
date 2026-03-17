@@ -865,3 +865,4 @@ participants {
 2026-03-17 18:19:16,398 [daml.index.db.threadpool.connection.indexer-13] INFO  c.d.c.p.i.MeteringAggregator:participant=sandbox - Aggregating transaction metering completed up to LedgerMeteringEnd(Offset(Bytes()),2026-03-17T12:00:00Z)
 2026-03-17 18:31:16,384 [daml.index.db.threadpool.connection.indexer-15] INFO  c.d.c.p.i.MeteringAggregator:participant=sandbox - Aggregating transaction metering for LedgerMeteringEnd(Offset(Bytes()),2026-03-17T13:00:00Z)
 2026-03-17 18:31:16,386 [daml.index.db.threadpool.connection.indexer-15] INFO  c.d.c.p.i.MeteringAggregator:participant=sandbox - Aggregating transaction metering completed up to LedgerMeteringEnd(Offset(Bytes()),2026-03-17T13:00:00Z)
+2026-03-17 18:41:49,397 [canton-env-ec-113] INFO  c.d.c.p.a.s.ApiLedgerIdentityService:participant=sandbox tid:3de998afe3fb7126488f935a3c9b50af - Received request for ledger identity: GetLedgerIdentityRequest().
