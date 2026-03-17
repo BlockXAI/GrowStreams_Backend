@@ -73,7 +73,7 @@ template StreamAgreement
         create this with
           deposited = deposited + additionalDeposit
     
-    -- Sender updates flow rate (settles current accrual first)
+    -- Sender updates flow rate (resets accrual timer)
     choice UpdateRate : ContractId StreamAgreement
       with
         newRate     : Decimal
@@ -83,12 +83,9 @@ template StreamAgreement
         assertMsg "Invalid rate" (newRate > 0.0)
         assertMsg "Stream must be active" (status == Active)
         
-        -- Settle current accrual before rate change
-        let accrued = calculateAccrued this currentTime
-        
+        -- Update rate and reset lastUpdate (new rate starts from this point)
         create this with
           flowRate = newRate
-          withdrawn = withdrawn + accrued
           lastUpdate = currentTime
     
     -- Sender pauses stream

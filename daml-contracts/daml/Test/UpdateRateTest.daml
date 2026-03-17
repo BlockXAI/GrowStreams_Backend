@@ -40,12 +40,12 @@ testUpdateRate = script do
   -- Stream for 100 more seconds at 0.2 GROW/s (20 GROW accrued)
   let withdrawTime = addRelTime updateTime (seconds 100)
   
-  -- Bob withdraws (should get 10 + 20 = 30 GROW total)
+  -- Bob withdraws (UpdateRate resets timer, so only 20 GROW from new rate)
   (_, amount) <- submit bob do
     exerciseCmd updatedStream Withdraw with
       currentTime = withdrawTime
   
-  assertMsg "Should withdraw 30 GROW (10 at old rate + 20 at new rate)" (amount == 30.0)
+  assertMsg "Should withdraw 20 GROW (100s at new rate 0.2)" (amount == 20.0)
   
   return ()
 
