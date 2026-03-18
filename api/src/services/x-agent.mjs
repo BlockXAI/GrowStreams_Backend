@@ -406,6 +406,50 @@ export async function reevaluateTweet(contributionId, tweetId, wallet) {
 }
 
 // ---------------------------------------------------------------------------
+// Poll for recent tweets (fallback for free-tier X API where filtered stream
+// connects but delivers no data). Called by cron every 15 minutes.
+// ---------------------------------------------------------------------------
+export async function pollRecentTweets() {
+  const bearerToken = process.env.X_BEARER_TOKEN;
+  if (!bearerToken) return;
+
+  console.log('[x-agent] Polling for recent GrowStreams tweets...');
+  const client = getReadClient();
+
+  try {
+    const result = await client.v2.search('(#GrowStreams OR @GrowStreams OR @GrowwStreams) -is:retweet lang:en', {
+      'tweet.fields': 'public_metrics,author_id,referenced_tweets,in_reply_to_user_id,attachments,created_at',
+      'user.fields': 'username,public_metrics',
+      'expansions': 'author_id,attachments.media_keys',
+      max_results: 10,
+    });
+
+    const tweets = result.data?.data || [];
+    const users = result.data?.includes?.users || [];
+
+    if (!tweets.length) {
+      console.log('[x-agent] Poll: no new tweets found');
+      return;
+    }
+
+    console.log(`[x-agent] Poll: found ${tweets.length} tweets`);
+
+    for (const tweet of tweets) {
+      const author = users.find(u => u.id === tweet.author_id);
+      if (!author) continue;
+
+      try {
+        await processTweet(tweet, author.username, author.public_metrics);
+      } catch (err) {
+        console.error(`[x-agent] Poll: error processing tweet ${tweet.id}: ${err.message}`);
+      }
+    }
+  } catch (err) {
+    console.error(`[x-agent] Poll failed: ${err.message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Start the filtered stream
 // ---------------------------------------------------------------------------
 export async function startStream() {

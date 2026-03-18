@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { runDailyXP } from './daily-xp.mjs';
 import { runSnapshot } from './leaderboard-snapshot.mjs';
 import { runReevaluate } from './x-reevaluate.mjs';
+import { pollRecentTweets } from '../services/x-agent.mjs';
 
 export function initCrons() {
   // Daily XP accumulation — midnight UTC
@@ -31,8 +32,18 @@ export function initCrons() {
     }
   }, { timezone: 'UTC' });
 
+  // X tweet polling — every 15 minutes (fallback for free-tier filtered stream)
+  cron.schedule('*/15 * * * *', async () => {
+    try {
+      await pollRecentTweets();
+    } catch (err) {
+      console.error(`[cron] x-poll failed: ${err.message}`);
+    }
+  }, { timezone: 'UTC' });
+
   console.log('[cron] Campaign jobs scheduled:');
   console.log('[cron]   daily-xp:    0 0 * * *   (midnight UTC)');
   console.log('[cron]   snapshot:    5 0 * * *   (00:05 UTC)');
   console.log('[cron]   x-reeval:    0 */6 * * * (every 6h)');
+  console.log('[cron]   x-poll:      */15 * * * * (every 15min)');
 }

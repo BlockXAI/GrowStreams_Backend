@@ -20,7 +20,7 @@ import campaignRouter from './routes/campaign.mjs';
 import webhooksRouter from './routes/webhooks.mjs';
 import leaderboardRouter from './routes/leaderboard.mjs';
 import usersRouter from './routes/users.mjs';
-import { startStream as startXStream } from './services/x-agent.mjs';
+import { startStream as startXStream, pollRecentTweets } from './services/x-agent.mjs';
 import { initCrons } from './cron/index.mjs';
 
 const app = express();
@@ -193,6 +193,15 @@ async function start() {
       } catch (err) {
         console.warn(`[x-agent] Failed to start: ${err.message}`);
       }
+
+      // Run initial tweet poll 30s after startup (free-tier stream may not deliver data)
+      setTimeout(async () => {
+        try {
+          await pollRecentTweets();
+        } catch (err) {
+          console.warn(`[x-agent] Initial poll failed: ${err.message}`);
+        }
+      }, 30000);
     });
   } catch (err) {
     console.error('[fatal]', err.message);

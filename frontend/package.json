@@ -46,8 +46,11 @@
     "three": "^0.183.1"
   },
   "overrides": {
-    "@polkadot/util": "13.3.1",
-    "@polkadot/util-crypto": "13.3.1"
+    "@polkadot/util": "13.5.9",
+    "@polkadot/util-crypto": "13.5.9",
+    "@polkadot/keyring": "13.5.9",
+    "@polkadot/types": "15.3.1",
+    "@polkadot/wasm-crypto": "7.4.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
