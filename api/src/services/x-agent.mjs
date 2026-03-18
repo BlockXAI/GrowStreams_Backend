@@ -450,6 +450,70 @@ export async function pollRecentTweets() {
 }
 
 // ---------------------------------------------------------------------------
+// Poll tweets from registered participants (bypasses search API limits).
+// Looks up each registered user's recent tweets and processes GrowStreams ones.
+// ---------------------------------------------------------------------------
+export async function pollRegisteredUsers() {
+  const bearerToken = process.env.X_BEARER_TOKEN;
+  if (!bearerToken) return;
+
+  console.log('[x-agent] Polling registered users for GrowStreams tweets...');
+  const client = getReadClient();
+
+  // Get all registered participants with x_handle
+  const participants = await query(
+    `SELECT wallet, x_handle FROM participants WHERE x_handle IS NOT NULL AND x_handle != ''`
+  );
+
+  if (!participants?.length) {
+    console.log('[x-agent] No registered X users to poll');
+    return;
+  }
+
+  console.log(`[x-agent] Polling ${participants.length} registered users`);
+  const growPattern = /growstream|#growstreams|@growstreams|@growwstreams/i;
+
+  for (const p of participants) {
+    try {
+      // Look up user ID by username
+      const userResult = await client.v2.userByUsername(p.x_handle, {
+        'user.fields': 'public_metrics',
+      });
+      const user = userResult.data;
+      if (!user) {
+        console.log(`[x-agent] User @${p.x_handle} not found on X`);
+        continue;
+      }
+
+      // Fetch recent tweets from this user
+      const timeline = await client.v2.userTimeline(user.id, {
+        'tweet.fields': 'public_metrics,author_id,referenced_tweets,in_reply_to_user_id,attachments,created_at',
+        max_results: 5,
+        exclude: ['retweets', 'replies'],
+      });
+
+      const tweets = timeline.data?.data || [];
+      if (!tweets.length) continue;
+
+      for (const tweet of tweets) {
+        // Only process tweets mentioning GrowStreams
+        if (!growPattern.test(tweet.text)) continue;
+
+        try {
+          await processTweet(tweet, p.x_handle, user.public_metrics);
+        } catch (err) {
+          console.error(`[x-agent] Error processing tweet ${tweet.id} from @${p.x_handle}: ${err.message}`);
+        }
+      }
+    } catch (err) {
+      console.error(`[x-agent] Failed to poll @${p.x_handle}: ${err.message}`);
+    }
+  }
+
+  console.log('[x-agent] Registered user poll complete');
+}
+
+// ---------------------------------------------------------------------------
 // Start the filtered stream
 // ---------------------------------------------------------------------------
 export async function startStream() {
