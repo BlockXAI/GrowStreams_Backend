@@ -102,6 +102,17 @@ router.post('/register', async (req, res, next) => {
       throw dbErr;
     }
 
+    // Award join bonus so new users appear on leaderboard immediately
+    const JOIN_BONUS = parseInt(process.env.JOIN_BONUS_XP || '10', 10);
+    if (JOIN_BONUS > 0) {
+      try {
+        await awardXP(wallet, JOIN_BONUS, 'JOIN_BONUS');
+        console.log(`[campaign] Join bonus: +${JOIN_BONUS} XP to ${wallet}`);
+      } catch (bonusErr) {
+        console.warn(`[campaign] Join bonus failed for ${wallet}: ${bonusErr.message}`);
+      }
+    }
+
     console.log(`[campaign] Registered ${wallet} (${track}) -> user ${user?.id || 'none'}`);
     res.status(201).json(data);
   } catch (err) { next(err); }

@@ -27,15 +27,21 @@ router.get('/', async (req, res, next) => {
 // ---------------------------------------------------------------------------
 router.get('/stats', async (req, res, next) => {
   try {
-    // Total participants with XP > 0
+    // Total registered participants
     const pRow = await queryOne(
-      `SELECT COUNT(*) AS cnt FROM participants WHERE total_xp > 0`
+      `SELECT COUNT(*) AS cnt FROM participants`
     );
     const totalParticipants = parseInt(pRow?.cnt || '0', 10);
 
+    // Active participants (with XP > 0)
+    const activeRow = await queryOne(
+      `SELECT COUNT(*) AS cnt FROM participants WHERE total_xp > 0`
+    );
+    const activeParticipants = parseInt(activeRow?.cnt || '0', 10);
+
     // Total XP
     const xpRow = await queryOne(
-      `SELECT COALESCE(SUM(total_xp), 0) AS total FROM participants WHERE total_xp > 0`
+      `SELECT COALESCE(SUM(total_xp), 0) AS total FROM participants`
     );
     const totalXP = parseInt(xpRow?.total || '0', 10);
 
@@ -80,6 +86,7 @@ router.get('/stats', async (req, res, next) => {
 
     res.json({
       totalParticipants,
+      activeParticipants,
       totalXP,
       totalContributions,
       ossContributions,

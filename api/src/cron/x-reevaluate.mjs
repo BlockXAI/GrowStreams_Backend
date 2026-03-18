@@ -13,11 +13,13 @@ export async function runReevaluate() {
   const startTime = Date.now();
   console.log('[x-reeval] Starting tweet re-evaluation...');
 
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
+  // Include PROVISIONAL and PENDING_REEVAL so they get finalized even if
+  // in-memory timers were lost during a server restart
   const contributions = await queryAll(
     `SELECT id, tweet_id, wallet FROM contributions
-     WHERE track = 'CONTENT' AND status = 'ACTIVE' AND submitted_at >= $1`,
+     WHERE track = 'CONTENT' AND status IN ('ACTIVE', 'PROVISIONAL', 'PENDING_REEVAL') AND submitted_at >= $1`,
     [cutoff]
   );
 

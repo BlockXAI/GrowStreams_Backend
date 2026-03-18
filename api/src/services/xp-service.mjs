@@ -172,24 +172,24 @@ export async function getLeaderboard(page = 1, limit = 50, track = null) {
             u.referral_code
      FROM participants p
      LEFT JOIN users u ON u.id = p.user_id
-     WHERE p.total_xp > 0 ${trackFilter}
-     ORDER BY p.total_xp DESC LIMIT $1 OFFSET $2`,
+     WHERE 1=1 ${trackFilter}
+     ORDER BY p.total_xp DESC, p.created_at ASC LIMIT $1 OFFSET $2`,
     params
   );
 
-  // Total count
+  // Total count (all registered participants)
   const countParams = track && track !== 'BOTH' ? [track] : [];
   const countRow = await queryOne(
-    `SELECT COUNT(*) AS cnt FROM participants WHERE total_xp > 0 ${
+    `SELECT COUNT(*) AS cnt FROM participants WHERE 1=1 ${
       track && track !== 'BOTH' ? `AND (track = $1 OR track = 'BOTH')` : ''
     }`,
     countParams
   );
   const count = parseInt(countRow?.cnt || '0', 10);
 
-  // Global total XP
+  // Global total XP (from all participants)
   const totalXPRow = await queryOne(
-    `SELECT COALESCE(SUM(total_xp), 0) AS total FROM participants WHERE total_xp > 0`
+    `SELECT COALESCE(SUM(total_xp), 0) AS total FROM participants`
   );
   const totalXP = parseInt(totalXPRow?.total || '0', 10);
 
@@ -278,7 +278,7 @@ export async function getParticipantStats(wallet) {
   );
 
   const totalXPRow = await queryOne(
-    `SELECT COALESCE(SUM(total_xp), 0) AS total FROM participants WHERE total_xp > 0`
+    `SELECT COALESCE(SUM(total_xp), 0) AS total FROM participants`
   );
   const totalXP = parseInt(totalXPRow?.total || '0', 10);
 
@@ -287,7 +287,7 @@ export async function getParticipantStats(wallet) {
     ? Math.round((participant.total_xp / totalXP) * poolUSDC * 100) / 100
     : 0;
 
-  // Calculate rank
+  // Calculate rank (users with same XP share a rank; 0-XP users ranked after everyone)
   const rankRow = await queryOne(
     `SELECT COUNT(*) + 1 AS rank FROM participants WHERE total_xp > $1`,
     [participant.total_xp]
@@ -321,7 +321,7 @@ export async function calculatePayout(wallet) {
   if (!participant) throw new Error(`[xp] Participant not found: ${wallet}`);
 
   const totalXPRow = await queryOne(
-    `SELECT COALESCE(SUM(total_xp), 0) AS total FROM participants WHERE total_xp > 0`
+    `SELECT COALESCE(SUM(total_xp), 0) AS total FROM participants`
   );
   const totalXP = parseInt(totalXPRow?.total || '0', 10);
 

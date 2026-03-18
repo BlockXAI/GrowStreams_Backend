@@ -116,8 +116,9 @@ async function updateContribution(id, updates) {
 // Calculate engagement velocity
 // ---------------------------------------------------------------------------
 function calculateEngagementVelocity(likes, retweets, replies, followerCount) {
-  if (!followerCount || followerCount === 0) return 0;
-  return (likes + retweets * 2 + replies * 1.5) / followerCount;
+  const raw = likes + retweets * 2 + replies * 1.5;
+  const effectiveFollowers = Math.max(followerCount || 0, 100); // floor at 100 to avoid tiny-denominator spikes
+  return raw / effectiveFollowers;
 }
 
 // ---------------------------------------------------------------------------
@@ -237,31 +238,37 @@ async function processTweet(tweet, authorUsername, authorMetrics) {
     return;
   }
 
-  // 8. Combined score: 65% LLM + 35% engagement
-  const combinedScore = Math.round(llmResult.score * 0.65 + engagementScore * 0.35);
-
+  // 8. TWO-PHASE SCORING
+  //    Phase 1 (now): use LLM quality score ONLY (engagement is near-zero for fresh tweets)
+  //    Phase 2 (6h re-eval): combine LLM + engagement for final score, adjust XP
+  const qualityScore = llmResult.score;
   const threshold = parseInt(process.env.SCORE_THRESHOLD || '70', 10);
+  const reevalThreshold = 40; // tweets scoring 40-69 get a second chance at 6h re-eval
 
-  if (combinedScore >= threshold) {
-    let xpAmount = getInitialXP(combinedScore, 'CONTENT');
+  if (qualityScore >= threshold) {
+    // HIGH QUALITY — award provisional XP (70% of full), finalize at 6h re-eval
+    const fullXP = getInitialXP(qualityScore, 'CONTENT');
+    let provisionalXP = Math.round(fullXP * 0.7);
 
     // Thread bonus: +30% if thread with 5+ tweets
     if (isThread && threadLength >= 5) {
-      xpAmount = Math.round(xpAmount * 1.3);
+      provisionalXP = Math.round(provisionalXP * 1.3);
     }
 
     const contribution = await insertContribution(
-      participant.wallet, tweetId, combinedScore, xpAmount,
-      'ACTIVE', llmResult.feedback, {
+      participant.wallet, tweetId, qualityScore, provisionalXP,
+      'PROVISIONAL', llmResult.feedback, {
         ...llmResult,
-        combinedScore,
+        qualityScore,
         engagementScore,
         velocity,
+        phase: 'initial',
+        followerCount,
       }
     );
 
     try {
-      await awardXP(participant.wallet, xpAmount, 'INITIAL_AWARD', contribution.id);
+      await awardXP(participant.wallet, provisionalXP, 'INITIAL_AWARD', contribution.id);
     } catch (err) {
       console.error(`[x-agent] XP award failed for tweet ${tweetId}: ${err.message}`);
     }
@@ -269,7 +276,7 @@ async function processTweet(tweet, authorUsername, authorMetrics) {
     // Thread bonus as separate event if applicable
     if (isThread && threadLength >= 5) {
       try {
-        const threadBonusXP = Math.round(getInitialXP(combinedScore, 'CONTENT') * 0.3);
+        const threadBonusXP = Math.round(getInitialXP(qualityScore, 'CONTENT') * 0.3 * 0.7);
         await awardXP(participant.wallet, threadBonusXP, 'THREAD_BONUS', contribution.id);
       } catch (err) {
         console.error(`[x-agent] Thread bonus XP failed for tweet ${tweetId}: ${err.message}`);
@@ -277,25 +284,48 @@ async function processTweet(tweet, authorUsername, authorMetrics) {
     }
 
     const rank = await getParticipantRank(participant.wallet);
-    await replyToTweet(tweetId, buildReplyText(combinedScore, xpAmount, rank));
+    await replyToTweet(tweetId, buildReplyText(qualityScore, provisionalXP, rank));
 
-    // Schedule re-evaluations
+    // Schedule Phase 2 re-evaluation at 6h and bonus check at 24h
     scheduleReevaluation(contribution.id, tweetId, participant.wallet, 6 * 60 * 60 * 1000);   // 6h
     scheduleReevaluation(contribution.id, tweetId, participant.wallet, 24 * 60 * 60 * 1000);  // 24h
 
-    console.log(`[x-agent] Tweet ${tweetId}: combinedScore=${combinedScore}, xp=${xpAmount}`);
-  } else {
-    await insertContribution(
-      participant.wallet, tweetId, combinedScore, 0,
-      'REJECTED', llmResult.feedback, {
+    console.log(`[x-agent] Tweet ${tweetId}: qualityScore=${qualityScore}, provisionalXP=${provisionalXP} (PROVISIONAL)`);
+
+  } else if (qualityScore >= reevalThreshold) {
+    // BORDERLINE — don't reject yet, give a second chance at 6h when engagement exists
+    const contribution = await insertContribution(
+      participant.wallet, tweetId, qualityScore, 0,
+      'PENDING_REEVAL', llmResult.feedback, {
         ...llmResult,
-        combinedScore,
+        qualityScore,
         engagementScore,
         velocity,
+        phase: 'initial',
+        followerCount,
       }
     );
 
-    console.log(`[x-agent] Tweet ${tweetId}: combinedScore=${combinedScore}, below threshold`);
+    // Schedule Phase 2 re-evaluation at 6h
+    scheduleReevaluation(contribution.id, tweetId, participant.wallet, 6 * 60 * 60 * 1000);
+
+    console.log(`[x-agent] Tweet ${tweetId}: qualityScore=${qualityScore}, PENDING_REEVAL (will re-check at 6h)`);
+
+  } else {
+    // LOW QUALITY — reject immediately
+    await insertContribution(
+      participant.wallet, tweetId, qualityScore, 0,
+      'REJECTED', llmResult.feedback, {
+        ...llmResult,
+        qualityScore,
+        engagementScore,
+        velocity,
+        phase: 'initial',
+        followerCount,
+      }
+    );
+
+    console.log(`[x-agent] Tweet ${tweetId}: qualityScore=${qualityScore}, REJECTED (below ${reevalThreshold})`);
   }
 }
 
@@ -323,18 +353,21 @@ function scheduleReevaluation(contributionId, tweetId, wallet, delayMs) {
 
 // ---------------------------------------------------------------------------
 // Re-evaluate a tweet (called by timer or cron)
+// Handles three statuses:
+//   PROVISIONAL  → finalize with engagement boost, award remaining 30% XP
+//   PENDING_REEVAL → second chance: combine LLM + engagement, award if above threshold
+//   ACTIVE       → check for viral/reshare/engagement bonuses
 // ---------------------------------------------------------------------------
 export async function reevaluateTweet(contributionId, tweetId, wallet) {
   console.log(`[x-agent] Re-evaluating tweet ${tweetId}`);
 
-  // Fetch contribution
   const contribution = await queryOne(
     `SELECT * FROM contributions WHERE id = $1`,
     [contributionId]
   );
 
-  if (!contribution || contribution.status !== 'ACTIVE') {
-    console.log(`[x-agent] Contribution ${contributionId} not active, skipping re-eval`);
+  if (!contribution || !['ACTIVE', 'PROVISIONAL', 'PENDING_REEVAL'].includes(contribution.status)) {
+    console.log(`[x-agent] Contribution ${contributionId} status=${contribution?.status}, skipping re-eval`);
     return;
   }
 
@@ -347,7 +380,6 @@ export async function reevaluateTweet(contributionId, tweetId, wallet) {
     });
     tweet = data;
   } catch (err) {
-    // 404 or similar = tweet deleted
     if (err.code === 404 || err.data?.status === 404) {
       await updateContribution(contributionId, { status: 'DELETED' });
       console.log(`[x-agent] Tweet ${tweetId} deleted, status → DELETED`);
@@ -362,13 +394,88 @@ export async function reevaluateTweet(contributionId, tweetId, wallet) {
   const replies = tweet.public_metrics?.reply_count || 0;
   const totalEngagements = likes + retweets + replies;
 
-  // Check for viral bonus (500+ engagements)
+  const oldResponse = typeof contribution.agent_response === 'string'
+    ? JSON.parse(contribution.agent_response)
+    : contribution.agent_response || {};
+  const followerCount = oldResponse.followerCount || 100;
+  const qualityScore = oldResponse.qualityScore || oldResponse.score || contribution.score;
+
+  const newVelocity = calculateEngagementVelocity(likes, retweets, replies, followerCount);
+  const newEngagementScore = engagementToScore(newVelocity);
+
+  // --- PROVISIONAL: Finalize with engagement boost, award remaining 30% XP ---
+  if (contribution.status === 'PROVISIONAL') {
+    const combinedScore = Math.round(qualityScore * 0.65 + newEngagementScore * 0.35);
+    const fullXP = getInitialXP(combinedScore, 'CONTENT');
+    const alreadyAwarded = contribution.xp_awarded || 0;
+    const remainingXP = Math.max(0, fullXP - alreadyAwarded);
+
+    if (remainingXP > 0) {
+      try {
+        await awardXP(wallet, remainingXP, 'ENGAGEMENT_BONUS', contributionId);
+        console.log(`[x-agent] Tweet ${tweetId}: finalized PROVISIONAL → ACTIVE, +${remainingXP} XP (combined=${combinedScore})`);
+      } catch (err) {
+        console.error(`[x-agent] Failed to award finalization XP for ${tweetId}: ${err.message}`);
+      }
+    }
+
+    await updateContribution(contributionId, {
+      status: 'ACTIVE',
+      score: combinedScore,
+      xp_awarded: alreadyAwarded + remainingXP,
+      agent_response: { ...oldResponse, combinedScore, engagementScore: newEngagementScore, velocity: newVelocity, phase: 'finalized' },
+    });
+
+    console.log(`[x-agent] Tweet ${tweetId}: PROVISIONAL → ACTIVE (combined=${combinedScore}, engagement=${newEngagementScore})`);
+    return;
+  }
+
+  // --- PENDING_REEVAL: Second chance with engagement ---
+  if (contribution.status === 'PENDING_REEVAL') {
+    const combinedScore = Math.round(qualityScore * 0.65 + newEngagementScore * 0.35);
+    const threshold = parseInt(process.env.SCORE_THRESHOLD || '70', 10);
+
+    if (combinedScore >= threshold) {
+      const xpAmount = getInitialXP(combinedScore, 'CONTENT');
+
+      await updateContribution(contributionId, {
+        status: 'ACTIVE',
+        score: combinedScore,
+        xp_awarded: xpAmount,
+        agent_response: { ...oldResponse, combinedScore, engagementScore: newEngagementScore, velocity: newVelocity, phase: 'promoted' },
+      });
+
+      try {
+        await awardXP(wallet, xpAmount, 'INITIAL_AWARD', contributionId);
+      } catch (err) {
+        console.error(`[x-agent] XP award failed for promoted tweet ${tweetId}: ${err.message}`);
+      }
+
+      const rank = await getParticipantRank(wallet);
+      await replyToTweet(tweetId, buildReplyText(combinedScore, xpAmount, rank));
+
+      // Schedule 24h bonus check
+      scheduleReevaluation(contributionId, tweetId, wallet, 24 * 60 * 60 * 1000);
+
+      console.log(`[x-agent] Tweet ${tweetId}: PENDING_REEVAL → ACTIVE (combined=${combinedScore}, xp=${xpAmount})`);
+    } else {
+      await updateContribution(contributionId, {
+        status: 'REJECTED',
+        score: combinedScore,
+        agent_response: { ...oldResponse, combinedScore, engagementScore: newEngagementScore, velocity: newVelocity, phase: 'rejected_after_reeval' },
+      });
+
+      console.log(`[x-agent] Tweet ${tweetId}: PENDING_REEVAL → REJECTED (combined=${combinedScore}, still below threshold)`);
+    }
+    return;
+  }
+
+  // --- ACTIVE: Check for viral/reshare/engagement bonuses ---
   if (totalEngagements >= 500) {
     await awardXP(wallet, 800, 'VIRAL_BONUS', contributionId);
     console.log(`[x-agent] Tweet ${tweetId}: VIRAL_BONUS +800 XP (${totalEngagements} engagements)`);
   }
 
-  // Check for @VaraNetwork retweet
   try {
     const client = getReadClient();
     const { data: retweeters } = await client.v2.tweetRetweetedBy(tweetId, {
@@ -379,7 +486,6 @@ export async function reevaluateTweet(contributionId, tweetId, wallet) {
       const varaRetweeted = retweeters.data.some(
         user => user.username?.toLowerCase() === 'varanetwork'
       );
-
       if (varaRetweeted) {
         await awardXP(wallet, 500, 'RESHARE_BONUS', contributionId);
         console.log(`[x-agent] Tweet ${tweetId}: RESHARE_BONUS +500 XP (@VaraNetwork retweeted)`);
@@ -389,13 +495,7 @@ export async function reevaluateTweet(contributionId, tweetId, wallet) {
     console.error(`[x-agent] Failed to check retweeters for ${tweetId}: ${err.message}`);
   }
 
-  // Check if engagement score improved significantly
-  const oldResponse = contribution.agent_response;
-  const followerCount = oldResponse?.followerCount || 1;
-  const newVelocity = calculateEngagementVelocity(likes, retweets, replies, followerCount);
-  const newEngagementScore = engagementToScore(newVelocity);
   const oldEngagementScore = oldResponse?.engagementScore || 0;
-
   if (newEngagementScore - oldEngagementScore > 10) {
     const bonusXP = Math.round((newEngagementScore - oldEngagementScore) * 3);
     await awardXP(wallet, bonusXP, 'ENGAGEMENT_BONUS', contributionId);
