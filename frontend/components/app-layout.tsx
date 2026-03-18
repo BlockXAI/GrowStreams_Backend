@@ -1,23 +1,30 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAccount, useApi } from '@gear-js/react-hooks';
 import { Wallet as GearWallet } from '@gear-js/wallet-connect';
 import {
   LayoutDashboard, Waves, Vault, GitFork, Shield,
   Trophy, Fingerprint, Wallet, LogOut, Menu, X, Coins,
+  Medal, Zap,
 } from 'lucide-react';
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 
 const PixelBlast = dynamic(() => import('@/components/ui/PixelBlast'), { ssr: false });
+const RisingLines = dynamic(() => import('@/components/ui/RisingLines'), { ssr: false });
+
+const comingSoonRoutes = ['/app/splits', '/app/bounties', '/app/identity', '/app/permissions'];
 
 const navItems = [
   { href: '/app', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/app/streams', label: 'Streams', icon: Waves },
   { href: '/app/grow', label: 'GROW Token', icon: Coins },
   { href: '/app/vault', label: 'Vault', icon: Vault },
+  { href: '/app/campaign', label: 'Campaign', icon: Zap },
+  { href: '/app/leaderboard', label: 'Leaderboard', icon: Medal },
   { href: '/app/splits', label: 'Splits', icon: GitFork, soon: true },
   { href: '/app/bounties', label: 'Bounties', icon: Trophy, soon: true },
   { href: '/app/identity', label: 'Identity', icon: Fingerprint, soon: true },
@@ -34,25 +41,43 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { account, logout } = useAccount();
   const { isApiReady } = useApi();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isComingSoon = comingSoonRoutes.some(r => pathname.startsWith(r));
 
   return (
     <div className="flex h-screen bg-provn-bg text-provn-text overflow-hidden relative">
       <div className="fixed inset-0 z-0 pointer-events-none opacity-40">
-        <PixelBlast
-          variant="square"
-          pixelSize={4}
-          color="#10b981"
-          patternScale={2}
-          patternDensity={1}
-          pixelSizeJitter={0}
-          enableRipples
-          rippleSpeed={0.4}
-          rippleThickness={0.12}
-          rippleIntensityScale={1.5}
-          speed={0.3}
-          edgeFade={0.25}
-          transparent
-        />
+        {isComingSoon ? (
+          <RisingLines
+            color="#10b981"
+            horizonColor="#10b981"
+            haloColor="#34d399"
+            riseSpeed={0.08}
+            flowSpeed={0.15}
+            riseIntensity={0.6}
+            flowIntensity={0.4}
+            haloIntensity={5.0}
+            brightness={0.8}
+            horizonHeight={-0.5}
+            circleScale={0.3}
+          />
+        ) : (
+          <PixelBlast
+            variant="square"
+            pixelSize={4}
+            color="#10b981"
+            patternScale={2}
+            patternDensity={1}
+            pixelSizeJitter={0}
+            enableRipples
+            rippleSpeed={0.4}
+            rippleThickness={0.12}
+            rippleIntensityScale={1.5}
+            speed={0.3}
+            edgeFade={0.25}
+            transparent
+            globalMouseTracking
+          />
+        )}
       </div>
       {sidebarOpen && (
         <div
@@ -68,10 +93,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       >
         <div className="p-5 border-b border-provn-border">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
-              <Waves className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-lg font-bold">GrowStreams</span>
+            <Image
+              src="/logo.png"
+              alt="GrowStreams"
+              width={130}
+              height={32}
+              className="h-8 w-auto"
+              priority
+            />
           </Link>
         </div>
 

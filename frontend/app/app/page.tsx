@@ -5,7 +5,7 @@ import { useAccount } from '@gear-js/react-hooks';
 import { api, type StreamData } from '@/lib/growstreams-api';
 import {
   Waves, Vault, Coins, Activity, ArrowRight, RefreshCw,
-  TrendingUp, TrendingDown, Zap, ChevronRight, Wallet,
+  TrendingUp, TrendingDown, Zap, ChevronRight, Wallet, Trophy,
 } from 'lucide-react';
 import Link from 'next/link';
 import WelcomeModal from '@/components/welcome-modal';
@@ -43,6 +43,9 @@ export default function DashboardPage() {
   const [outflow, setOutflow] = useState(0);
   const [inflow, setInflow] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [campaignXP, setCampaignXP] = useState<number | null>(null);
+  const [campaignRank, setCampaignRank] = useState<number | null>(null);
+  const [campaignUSDC, setCampaignUSDC] = useState<number | null>(null);
 
   const loadDashboard = useCallback(async () => {
     if (!account?.decodedAddress) return;
@@ -77,6 +80,18 @@ export default function DashboardPage() {
         setActiveCount(active.length);
         setOutflow(active.filter(s => s.sender?.toLowerCase() === hexLower).reduce((s, x) => s + Number(x.flow_rate), 0));
         setInflow(active.filter(s => s.receiver?.toLowerCase() === hexLower).reduce((s, x) => s + Number(x.flow_rate), 0));
+      }
+      // Load campaign XP (non-blocking, silent fail)
+      try {
+        const stats = await api.campaign.participantStats(hex) as Record<string, unknown>;
+        if (stats && typeof stats.rank === 'number') {
+          setCampaignRank(stats.rank as number);
+          const participant = stats.participant as Record<string, unknown> | undefined;
+          setCampaignXP(participant?.total_xp as number || 0);
+          setCampaignUSDC(stats.estimatedUSDC as number || 0);
+        }
+      } catch {
+        // Not registered or API unavailable — ignore
       }
     } catch (err) {
       console.error('Dashboard load failed:', err);
@@ -144,6 +159,35 @@ export default function DashboardPage() {
           <p className="text-[10px] text-provn-muted mt-1">GROW locked in streams</p>
         </div>
       </div>
+
+      {/* Campaign XP Ticker */}
+      {campaignXP !== null ? (
+        <Link href="/app/leaderboard" className="bg-gradient-to-r from-amber-500/10 to-emerald-500/10 border border-amber-500/20 rounded-xl p-4 flex items-center gap-4 hover:border-amber-500/40 transition-colors group">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center flex-shrink-0">
+            <Trophy className="w-5 h-5 text-amber-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold">Campaign XP</p>
+            <p className="text-[11px] text-provn-muted">Rank #{campaignRank || '--'} &middot; Est. ${campaignUSDC?.toFixed(2) || '0.00'} USDC</p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold font-mono text-amber-400">{(campaignXP || 0).toLocaleString()}</p>
+            <p className="text-[10px] text-provn-muted">Total XP</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-provn-muted group-hover:text-amber-400 transition-colors" />
+        </Link>
+      ) : (
+        <Link href="/app/campaign" className="bg-gradient-to-r from-emerald-500/10 to-blue-500/10 border border-emerald-500/20 rounded-xl p-4 flex items-center gap-4 hover:border-emerald-500/40 transition-colors group">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
+            <Trophy className="w-5 h-5 text-emerald-400" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold">Join the GrowStreams Campaign</p>
+            <p className="text-[11px] text-provn-muted">Earn XP and USDC rewards for contributing code or content</p>
+          </div>
+          <ChevronRight className="w-4 h-4 text-provn-muted group-hover:text-emerald-400 transition-colors" />
+        </Link>
+      )}
 
       {(outflow > 0 || inflow > 0) && (
         <div className="grid grid-cols-3 gap-3">

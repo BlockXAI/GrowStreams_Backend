@@ -1,5 +1,15 @@
 {
+  "name": "growstreams",
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "postinstall": "cd api && npm install",
+    "start": "cd api && node src/index.mjs"
+  },
   "dependencies": {
     "dotenv": "^17.3.1"
+  },
+  "engines": {
+    "node": "20.x"
   }
 }

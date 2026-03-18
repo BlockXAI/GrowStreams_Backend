@@ -257,7 +257,7 @@ function StreamCard({
           <input
             value={depositAmounts[s.id] || ''}
             onChange={e => setDepositAmounts(prev => ({ ...prev, [s.id]: e.target.value }))}
-            type="number" step="any" placeholder="Amount (GROW)"
+            type="number" step="any" placeholder={`Amount (${s.token === ZERO_TOKEN ? 'VARA' : 'GROW'})`}
             className="flex-1 px-3 py-1.5 bg-provn-bg border border-provn-border rounded-lg text-xs focus:border-emerald-500/50 focus:outline-none"
           />
           <button onClick={() => onAction(s.id, 'deposit')} disabled={busy === s.id}
@@ -284,7 +284,7 @@ export default function StreamsPage() {
   const [flowRate, setFlowRate] = useState('');
   const [deposit, setDeposit] = useState('');
   const [depositAmounts, setDepositAmounts] = useState<Record<number, string>>({});
-  const [useGrow, setUseGrow] = useState(true);
+  const useGrow = true;
   const [streamName, setStreamName] = useState('');
   const [streamNames, setStreamNames] = useState<Record<number, string>>({});
 
@@ -382,7 +382,9 @@ export default function StreamsPage() {
         case 'deposit': {
           const amt = depositAmounts[id];
           if (!amt) { toast.error('Enter an amount'); return; }
-          await actions.depositToStream(id, amt);
+          const baseAmt = toBaseUnits(amt);
+          if (baseAmt === '0') { toast.error('Enter a valid amount greater than zero'); return; }
+          await actions.depositToStream(id, baseAmt);
           setDepositAmounts(prev => ({ ...prev, [id]: '' }));
           break;
         }
@@ -457,22 +459,9 @@ export default function StreamsPage() {
           <h2 className="font-semibold">New Stream</h2>
           <div className="flex items-center gap-3">
             <label className="text-xs text-provn-muted">Token:</label>
-            <button
-              type="button" onClick={() => setUseGrow(true)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
-                useGrow ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'border-provn-border text-provn-muted hover:bg-provn-bg'
-              }`}
-            >
+            <span className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
               GROW Token
-            </button>
-            <button
-              type="button" onClick={() => setUseGrow(false)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
-                !useGrow ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' : 'border-provn-border text-provn-muted hover:bg-provn-bg'
-              }`}
-            >
-              Native VARA
-            </button>
+            </span>
           </div>
           {useGrow && (
             <p className="text-xs text-emerald-400/70 bg-emerald-500/5 rounded-lg px-3 py-2 border border-emerald-500/10">

@@ -1,0 +1,548 @@
+import { scorePR } from './llm-scorer.mjs';
+import { awardXP, getInitialXP } from './xp-service.mjs';
+import { queryOne, queryAll, query } from './db.mjs';
+
+function getToken() {
+  const token = process.env.GITHUB_APP_PRIVATE_KEY || process.env.GITHUB_TOKEN;
+  if (!token) {
+    throw new Error('[github-agent] Missing GITHUB_APP_PRIVATE_KEY or GITHUB_TOKEN');
+  }
+  return token;
+}
+
+function getRepoConfig() {
+  return {
+    owner: process.env.GITHUB_REPO_OWNER || 'BlockXAI',
+    repo: process.env.GITHUB_REPO_NAME || 'GrowStreams_Backend',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// GitHub API helper with retry (1 retry) and proper error logging
+// ---------------------------------------------------------------------------
+async function ghApiFetch(path, options = {}) {
+  const token = getToken();
+  const baseUrl = 'https://api.github.com';
+  const url = `${baseUrl}${path}`;
+  const method = options.method || 'GET';
+  const maxAttempts = 2; // 1 retry
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'GrowStreams-Bot/1.0',
+      };
+      if (options.body) headers['Content-Type'] = 'application/json';
+
+      const resp = await fetch(url, {
+        method,
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+      });
+
+      if (!resp.ok) {
+        const errorBody = await resp.text().catch(() => '(no body)');
+        const errMsg = `GitHub API ${method} ${path} → ${resp.status} ${resp.statusText}: ${errorBody.slice(0, 300)}`;
+        console.error(`[github-agent] ${errMsg}`);
+        if (attempt < maxAttempts && (resp.status >= 500 || resp.status === 403 || resp.status === 429)) {
+          console.log(`[github-agent] Retrying (${attempt}/${maxAttempts})...`);
+          await new Promise(r => setTimeout(r, 2000 * attempt));
+          continue;
+        }
+        throw new Error(errMsg);
+      }
+
+      const data = await resp.json();
+      return data;
+    } catch (err) {
+      if (attempt < maxAttempts && !err.message.startsWith('GitHub API')) {
+        console.error(`[github-agent] Fetch error (attempt ${attempt}): ${err.message}`);
+        await new Promise(r => setTimeout(r, 2000 * attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+function isCampaignActive() {
+  const start = process.env.CAMPAIGN_START_DATE;
+  const end = process.env.CAMPAIGN_END_DATE;
+  const now = new Date();
+
+  if (start && new Date(start) > now) return false;
+  if (end && new Date(end) < now) return false;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Fetch PR diff as combined patch text
+// ---------------------------------------------------------------------------
+async function fetchPRDiff(prNumber) {
+  const { owner, repo } = getRepoConfig();
+
+  const files = await ghApiFetch(`/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=50`);
+
+  const patches = files.map(f => {
+    const header = `--- ${f.filename}\n+++ ${f.filename}\n`;
+    return header + (f.patch || '(binary or too large)');
+  });
+
+  return patches.join('\n\n');
+}
+
+// ---------------------------------------------------------------------------
+// Fetch linked issue body by parsing PR body for #NNN references
+// ---------------------------------------------------------------------------
+async function fetchLinkedIssue(prBody) {
+  if (!prBody) return '';
+
+  const match = prBody.match(/#(\d+)/);
+  if (!match) return '';
+
+  const issueNumber = parseInt(match[1], 10);
+  const { owner, repo } = getRepoConfig();
+
+  try {
+    const issue = await ghApiFetch(`/repos/${owner}/${repo}/issues/${issueNumber}`);
+    return `**${issue.title}**\n\n${issue.body || ''}`;
+  } catch (err) {
+    console.warn(`[github-agent] Failed to fetch linked issue #${issueNumber}: ${err.message}`);
+    return '';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fetch CI check status for a commit
+// ---------------------------------------------------------------------------
+async function fetchCIStatus(sha) {
+  const { owner, repo } = getRepoConfig();
+
+  try {
+    const data = await ghApiFetch(`/repos/${owner}/${repo}/commits/${sha}/check-runs?per_page=10`);
+
+    if (!data.check_runs || data.check_runs.length === 0) return '';
+
+    return data.check_runs
+      .map(run => `${run.name}: ${run.conclusion || run.status}`)
+      .join('\n');
+  } catch (err) {
+    console.warn(`[github-agent] Failed to fetch CI status for ${sha}: ${err.message}`);
+    return '';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Count meaningful diff lines (excludes blank, comments, imports-only)
+// ---------------------------------------------------------------------------
+function countMeaningfulDiffLines(diff) {
+  if (!diff) return 0;
+  const lines = diff.split('\n');
+  let count = 0;
+  for (const line of lines) {
+    // Only count added/removed lines (start with + or -)
+    if (!line.startsWith('+') && !line.startsWith('-')) continue;
+    // Skip diff headers
+    if (line.startsWith('+++') || line.startsWith('---')) continue;
+    // Strip the +/- prefix
+    const content = line.slice(1).trim();
+    // Skip empty lines
+    if (!content) continue;
+    // Skip pure comment lines
+    if (content.startsWith('//') || content.startsWith('#') || content.startsWith('*') || content.startsWith('/*')) continue;
+    // Skip pure import/require lines
+    if (content.startsWith('import ') || content.startsWith('require(')) continue;
+    count++;
+  }
+  return count;
+}
+
+// ---------------------------------------------------------------------------
+// Post a comment on a PR
+// ---------------------------------------------------------------------------
+async function postComment(prNumber, body) {
+  const { owner, repo } = getRepoConfig();
+
+  try {
+    await ghApiFetch(`/repos/${owner}/${repo}/issues/${prNumber}/comments`, {
+      method: 'POST',
+      body: { body },
+    });
+    console.log(`[github-agent] Posted comment on PR #${prNumber}`);
+  } catch (err) {
+    console.error(`[github-agent] Failed to post comment on PR #${prNumber}: ${err.message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Build the score comment for GitHub
+// ---------------------------------------------------------------------------
+function buildScoreComment(result, xpAwarded, wallet) {
+  const { score, factors, feedback } = result;
+  const passed = score >= parseInt(process.env.SCORE_THRESHOLD || '70', 10);
+  const emoji = passed ? '✅' : '❌';
+
+  let comment = `### 🤖 GrowStreams AI Review\n\n`;
+  comment += `**Score: ${score}/100** ${emoji}\n\n`;
+  comment += `| Factor | Score |\n|--------|-------|\n`;
+  comment += `| Correctness | ${factors.correctness}/30 |\n`;
+  comment += `| Test Coverage | ${factors.testCoverage}/25 |\n`;
+  comment += `| Code Quality | ${factors.codeQuality}/20 |\n`;
+  comment += `| Issue Relevance | ${factors.issueRelevance}/15 |\n`;
+  comment += `| Completeness | ${factors.completeness}/10 |\n\n`;
+  comment += `**Feedback:** ${feedback}\n\n`;
+
+  if (passed && xpAwarded > 0) {
+    comment += `---\n`;
+    comment += `🏆 **XP Awarded: ${xpAwarded} XP**`;
+    if (wallet) comment += ` → \`${wallet.slice(0, 8)}...${wallet.slice(-4)}\``;
+    comment += `\n📊 [View Leaderboard](https://growstreams.app/leaderboard)\n`;
+  } else if (!passed) {
+    comment += `---\n`;
+    comment += `💡 Score below ${process.env.SCORE_THRESHOLD || '70'}. `;
+    comment += `Push improvements to this PR and it will be re-scored automatically.\n`;
+  }
+
+  return comment;
+}
+
+function buildMergeBonusComment(bonusXP, wallet) {
+  let comment = `### 🤖 GrowStreams — Merge Bonus!\n\n`;
+  comment += `🎉 This PR was merged. **+${bonusXP} XP** merge bonus awarded`;
+  if (wallet) comment += ` to \`${wallet.slice(0, 8)}...${wallet.slice(-4)}\``;
+  comment += `.\n\n📊 [View Leaderboard](https://growstreams.app/leaderboard)\n`;
+  return comment;
+}
+
+// ---------------------------------------------------------------------------
+// Look up participant by GitHub username
+// ---------------------------------------------------------------------------
+async function findParticipant(githubUsername) {
+  return await queryOne(
+    `SELECT * FROM participants WHERE github_handle = $1`,
+    [githubUsername]
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Find existing contribution by PR number
+// ---------------------------------------------------------------------------
+async function findContributionByPR(prNumber) {
+  return await queryOne(
+    `SELECT * FROM contributions WHERE pr_number = $1 AND track = 'OSS'`,
+    [prNumber]
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Insert a new contribution record
+// ---------------------------------------------------------------------------
+async function insertContribution(wallet, prNumber, score, xpAwarded, status, agentFeedback, agentResponse) {
+  const now = new Date().toISOString();
+  const isActive = status === 'ACTIVE';
+  const maxDailyDays = 14;
+  const maxDailyUntil = isActive
+    ? new Date(Date.now() + maxDailyDays * 86400000).toISOString()
+    : null;
+
+  const data = await queryOne(
+    `INSERT INTO contributions
+       (wallet, track, external_id, score, xp_awarded, status, agent_feedback, agent_response, pr_number, first_scored_at, max_daily_until, submitted_at)
+     VALUES ($1, 'OSS', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     RETURNING *`,
+    [
+      wallet, `PR#${prNumber}`, score, xpAwarded, status,
+      agentFeedback, JSON.stringify(agentResponse), prNumber,
+      isActive ? now : null, maxDailyUntil, now,
+    ]
+  );
+
+  return data;
+}
+
+// ---------------------------------------------------------------------------
+// Update an existing contribution
+// ---------------------------------------------------------------------------
+async function updateContribution(id, updates) {
+  const setClauses = [];
+  const values = [];
+  let idx = 1;
+
+  for (const [key, val] of Object.entries(updates)) {
+    setClauses.push(`${key} = $${idx}`);
+    values.push(key === 'agent_response' ? JSON.stringify(val) : val);
+    idx++;
+  }
+  setClauses.push(`updated_at = $${idx}`);
+  values.push(new Date().toISOString());
+  idx++;
+  values.push(id);
+
+  await query(
+    `UPDATE contributions SET ${setClauses.join(', ')} WHERE id = $${idx}`,
+    values
+  );
+}
+
+// ===========================================================================
+// EVENT HANDLERS
+// ===========================================================================
+
+/**
+ * Handle pull_request.opened event
+ */
+export async function handlePROpened(payload) {
+  const pr = payload.pull_request;
+  const prNumber = pr.number;
+  const authorLogin = pr.user.login;
+
+  console.log(`[github-agent] PR #${prNumber} opened by ${authorLogin}`);
+
+  if (!isCampaignActive()) {
+    console.log(`[github-agent] Campaign not active, skipping PR #${prNumber}`);
+    return;
+  }
+
+  const participant = await findParticipant(authorLogin);
+  if (!participant) {
+    console.log(`[github-agent] ${authorLogin} not registered, skipping`);
+    await postComment(prNumber,
+      `👋 Hey @${authorLogin}! Register at [GrowStreams](https://growstreams.app/campaign) to earn XP for your contributions.`
+    );
+    return;
+  }
+
+  // Check for existing contribution (avoid duplicate scoring via close+reopen)
+  const existing = await findContributionByPR(prNumber);
+  if (existing && ['ACTIVE', 'MERGED', 'CLOSED'].includes(existing.status)) {
+    console.log(`[github-agent] PR #${prNumber} already has contribution (status=${existing.status}), skipping`);
+    return;
+  }
+
+  let diff;
+  try {
+    diff = await fetchPRDiff(prNumber);
+  } catch (err) {
+    console.error(`[github-agent] Failed to fetch PR diff for #${prNumber}: ${err.message}`);
+    return;
+  }
+
+  // Anti-gaming: reject trivially small PRs
+  const meaningfulLines = countMeaningfulDiffLines(diff);
+  if (meaningfulLines < 5) {
+    console.log(`[github-agent] PR #${prNumber}: only ${meaningfulLines} meaningful lines, flagging as trivial`);
+    await insertContribution(
+      participant.wallet, prNumber, 0, 0,
+      'REJECTED', `Trivial change: only ${meaningfulLines} meaningful lines changed.`, { trivial: true, meaningfulLines }
+    );
+    await postComment(prNumber,
+      `### 🤖 GrowStreams AI Review\n\n**Score: Below threshold**\n\nThis PR has fewer than 5 meaningful lines of change. Please submit more substantial contributions to earn XP.\n\n💡 Push more changes and it will be re-scored automatically.`
+    );
+    return;
+  }
+
+  const issueBody = await fetchLinkedIssue(pr.body);
+  const ciStatus = await fetchCIStatus(pr.head?.sha);
+
+  // LLM scoring with try/catch
+  let result;
+  try {
+    result = await scorePR(diff, issueBody, ciStatus);
+  } catch (err) {
+    console.error(`[github-agent] LLM scoring failed for PR #${prNumber}: ${err.message}`);
+    return;
+  }
+
+  const threshold = parseInt(process.env.SCORE_THRESHOLD || '70', 10);
+
+  if (result.score >= threshold) {
+    const xpAmount = getInitialXP(result.score, 'OSS');
+    const contribution = await insertContribution(
+      participant.wallet, prNumber, result.score, xpAmount,
+      'ACTIVE', result.feedback, result
+    );
+
+    try {
+      await awardXP(participant.wallet, xpAmount, 'INITIAL_AWARD', contribution.id);
+    } catch (err) {
+      console.error(`[github-agent] XP award failed for PR #${prNumber}: ${err.message}`);
+    }
+    await postComment(prNumber, buildScoreComment(result, xpAmount, participant.wallet));
+
+    console.log(`[github-agent] PR #${prNumber}: score=${result.score}, xp=${xpAmount}`);
+  } else {
+    await insertContribution(
+      participant.wallet, prNumber, result.score, 0,
+      'REJECTED', result.feedback, result
+    );
+
+    await postComment(prNumber, buildScoreComment(result, 0, null));
+    console.log(`[github-agent] PR #${prNumber}: score=${result.score}, below threshold`);
+  }
+}
+
+/**
+ * Handle pull_request.synchronize event (new commits pushed)
+ */
+export async function handlePRSynchronized(payload) {
+  const pr = payload.pull_request;
+  const prNumber = pr.number;
+  const authorLogin = pr.user.login;
+
+  console.log(`[github-agent] PR #${prNumber} synchronized by ${authorLogin}`);
+
+  if (!isCampaignActive()) return;
+
+  const participant = await findParticipant(authorLogin);
+  if (!participant) return;
+
+  const existing = await findContributionByPR(prNumber);
+  if (!existing) {
+    // Treat as new if no existing contribution
+    await handlePROpened(payload);
+    return;
+  }
+
+  // Only re-score if REJECTED (give them another chance) or ACTIVE (check for tier change)
+  if (existing.status !== 'REJECTED' && existing.status !== 'ACTIVE') return;
+
+  let diff;
+  try {
+    diff = await fetchPRDiff(prNumber);
+  } catch (err) {
+    console.error(`[github-agent] Failed to fetch PR diff for #${prNumber}: ${err.message}`);
+    return;
+  }
+
+  const issueBody = await fetchLinkedIssue(pr.body);
+  const ciStatus = await fetchCIStatus(pr.head?.sha);
+
+  let result;
+  try {
+    result = await scorePR(diff, issueBody, ciStatus);
+  } catch (err) {
+    console.error(`[github-agent] LLM scoring failed for PR #${prNumber} (sync): ${err.message}`);
+    return;
+  }
+
+  const threshold = parseInt(process.env.SCORE_THRESHOLD || '70', 10);
+
+  if (existing.status === 'REJECTED' && result.score >= threshold) {
+    // Upgrade from REJECTED to ACTIVE
+    const xpAmount = getInitialXP(result.score, 'OSS');
+    const now = new Date().toISOString();
+
+    await updateContribution(existing.id, {
+      score: result.score,
+      xp_awarded: xpAmount,
+      status: 'ACTIVE',
+      agent_feedback: result.feedback,
+      agent_response: result,
+      first_scored_at: now,
+      max_daily_until: new Date(Date.now() + 14 * 86400000).toISOString(),
+    });
+
+    try {
+      await awardXP(participant.wallet, xpAmount, 'INITIAL_AWARD', existing.id);
+    } catch (err) {
+      console.error(`[github-agent] XP award failed for PR #${prNumber} (upgrade): ${err.message}`);
+    }
+    await postComment(prNumber, buildScoreComment(result, xpAmount, participant.wallet));
+
+    console.log(`[github-agent] PR #${prNumber} upgraded: score=${result.score}, xp=${xpAmount}`);
+
+  } else if (existing.status === 'ACTIVE') {
+    // Check if score tier changed
+    const oldXP = getInitialXP(existing.score, 'OSS');
+    const newXP = getInitialXP(result.score, 'OSS');
+    const xpDelta = newXP - oldXP;
+
+    await updateContribution(existing.id, {
+      score: result.score,
+      agent_feedback: result.feedback,
+      agent_response: result,
+    });
+
+    if (xpDelta > 0) {
+      try {
+        await awardXP(participant.wallet, xpDelta, 'ADJUSTMENT', existing.id);
+      } catch (err) {
+        console.error(`[github-agent] XP adjustment failed for PR #${prNumber}: ${err.message}`);
+      }
+
+      await updateContribution(existing.id, {
+        xp_awarded: existing.xp_awarded + xpDelta,
+      });
+    }
+
+    if (result.score !== existing.score) {
+      await postComment(prNumber, buildScoreComment(result, xpDelta > 0 ? xpDelta : 0, participant.wallet));
+      console.log(`[github-agent] PR #${prNumber} re-scored: ${existing.score} → ${result.score}`);
+    }
+
+  } else if (existing.status === 'REJECTED' && result.score < threshold) {
+    // Still rejected, update score + feedback
+    await updateContribution(existing.id, {
+      score: result.score,
+      agent_feedback: result.feedback,
+      agent_response: result,
+    });
+
+    await postComment(prNumber, buildScoreComment(result, 0, null));
+    console.log(`[github-agent] PR #${prNumber} re-scored, still below threshold: ${result.score}`);
+  }
+}
+
+/**
+ * Handle pull_request.closed + merged event
+ */
+export async function handlePRMerged(payload) {
+  const pr = payload.pull_request;
+  const prNumber = pr.number;
+  const authorLogin = pr.user.login;
+
+  console.log(`[github-agent] PR #${prNumber} merged by ${authorLogin}`);
+
+  const participant = await findParticipant(authorLogin);
+  if (!participant) return;
+
+  const existing = await findContributionByPR(prNumber);
+  if (!existing) return;
+
+  // Only award merge bonus for ACTIVE contributions
+  if (existing.status !== 'ACTIVE') {
+    await updateContribution(existing.id, { status: 'MERGED' });
+    return;
+  }
+
+  const mergeBonus = parseInt(process.env.MERGE_BONUS_XP || '500', 10);
+
+  await updateContribution(existing.id, {
+    status: 'MERGED',
+    xp_awarded: existing.xp_awarded + mergeBonus,
+  });
+
+  await awardXP(participant.wallet, mergeBonus, 'MERGE_BONUS', existing.id);
+  await postComment(prNumber, buildMergeBonusComment(mergeBonus, participant.wallet));
+
+  console.log(`[github-agent] PR #${prNumber}: merge bonus +${mergeBonus} XP`);
+}
+
+/**
+ * Handle pull_request.closed (not merged) event
+ */
+export async function handlePRClosed(payload) {
+  const pr = payload.pull_request;
+  const prNumber = pr.number;
+
+  console.log(`[github-agent] PR #${prNumber} closed without merge`);
+
+  const existing = await findContributionByPR(prNumber);
+  if (!existing) return;
+
+  await updateContribution(existing.id, { status: 'CLOSED' });
+  console.log(`[github-agent] PR #${prNumber} contribution status → CLOSED`);
+}
