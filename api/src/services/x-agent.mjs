@@ -1,7 +1,7 @@
 import { TwitterApi } from 'twitter-api-v2';
 import { scoreContent } from './llm-scorer.mjs';
 import { awardXP, getInitialXP } from './xp-service.mjs';
-import { queryOne, query } from './db.mjs';
+import { queryOne, query, queryAll } from './db.mjs';
 
 let readClient = null;
 let writeClient = null;
@@ -461,7 +461,7 @@ export async function pollRegisteredUsers() {
   const client = getReadClient();
 
   // Get all registered participants with x_handle
-  const participants = await query(
+  const participants = await queryAll(
     `SELECT wallet, x_handle FROM participants WHERE x_handle IS NOT NULL AND x_handle != ''`
   );
 
