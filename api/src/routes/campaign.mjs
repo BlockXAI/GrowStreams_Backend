@@ -230,4 +230,13 @@ router.post('/award-xp', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/campaign/poll-tweets — manually trigger tweet poll (admin)
+router.post('/poll-tweets', async (req, res, next) => {
+  try {
+    const { pollRecentTweets } = await import('../services/x-agent.mjs');
+    await pollRecentTweets();
+    res.json({ success: true, message: 'Poll completed' });
+  } catch (err) { next(err); }
+});
+
 export default router;
