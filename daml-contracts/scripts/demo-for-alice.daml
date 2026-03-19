@@ -1,0 +1,101 @@
+module DemoForAlice where
+
+import Daml.Script
+import StreamCore
+import GrowToken
+
+-- Demo script that creates contracts Alice can interact with
+demoForAlice : Script ()
+demoForAlice = script do
+  -- Allocate parties
+  alice <- allocatePartyWithHint "Alice" (PartyIdHint "Alice")
+  bob <- allocatePartyWithHint "Bob" (PartyIdHint "Bob")
+  
+  -- Alice creates a token for herself
+  aliceToken <- submit alice do
+    createCmd GrowToken with
+      owner = alice
+      issuer = alice
+      amount = 10000.0
+      symbol = "GROW"
+      decimals = 2
+  
+  -- Bob creates a token for himself
+  bobToken <- submit bob do
+    createCmd GrowToken with
+      owner = bob
+      issuer = bob
+      amount = 10000.0
+      symbol = "GROW"
+      decimals = 2
+  
+  -- Alice creates a StreamFactory
+  factory <- submit alice do
+    createCmd StreamFactory with
+      admin = alice
+      users = [alice, bob]
+      nextStreamId = 1
+  
+  -- Alice creates a stream to Bob
+  let currentTime = time (date 2026 Mar 19) 9 0 0
+  (newFactory, stream) <- submit alice do
+    exerciseCmd factory CreateStream with
+      sender = alice
+      receiver = bob
+      flowRate = 1.0
+      initialDeposit = 1000.0
+      currentTime = currentTime
+  
+  -- Wait 10 seconds (simulated)
+  let laterTime = addRelTime currentTime (seconds 10)
+  
+  -- Alice checks withdrawable amount (ObligationView)
+  (withdrawable, totalStreamed, status) <- submitMulti [alice, bob] [] do
+    exerciseCmd stream ObligationView with
+      currentTime = laterTime
+  
+  debug $ "Withdrawable: " <> show withdrawable <> " GROW"
+  debug $ "Total Streamed: " <> show totalStreamed <> " GROW"
+  debug $ "Status: " <> show status
+  
+  -- Bob withdraws tokens
+  (updatedStream, withdrawnTokens) <- submit bob do
+    exerciseCmd stream Withdraw with
+      currentTime = laterTime
+  
+  debug $ "Bob withdrew: " <> show withdrawnTokens <> " GROW tokens"
+  
+  -- Alice tops up the stream
+  updatedStream2 <- submit alice do
+    exerciseCmd updatedStream TopUp with
+      additionalDeposit = 500.0
+      currentTime = laterTime
+  
+  debug "Stream topped up with 500 GROW"
+  
+  -- Alice pauses the stream
+  pausedStream <- submit alice do
+    exerciseCmd updatedStream2 Pause with
+      currentTime = laterTime
+  
+  debug "Stream paused"
+  
+  -- Wait another 10 seconds
+  let evenLaterTime = addRelTime laterTime (seconds 10)
+  
+  -- Alice resumes the stream
+  resumedStream <- submit alice do
+    exerciseCmd pausedStream Resume with
+      currentTime = evenLaterTime
+  
+  debug "Stream resumed"
+  
+  -- Alice updates the flow rate
+  updatedRateStream <- submit alice do
+    exerciseCmd resumedStream UpdateRate with
+      newFlowRate = 2.0
+      currentTime = evenLaterTime
+  
+  debug "Flow rate updated to 2.0 GROW/second"
+  
+  return ()

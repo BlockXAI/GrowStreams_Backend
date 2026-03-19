@@ -1,0 +1,174 @@
+-- scripts/demo/03-lifecycle-realtime.daml
+-- Real-Time Lifecycle Management Demo
+--
+-- Demonstrates Pause, Resume, TopUp, UpdateRate with real time
+-- Shows that paused streams don't accrue in real-time
+
+module Demo.LifecycleRealtime where
+
+import Daml.Script
+import DA.Time
+import StreamCore
+
+-- Demo: Full lifecycle with real-time waits
+lifecycleRealtime : Script ()
+lifecycleRealtime = script do
+  debug "=== Real-Time Lifecycle Demo ==="
+  
+  -- Setup
+  alice <- allocatePartyWithHint "Alice" (PartyIdHint "Alice")
+  bob <- allocatePartyWithHint "Bob" (PartyIdHint "Bob")
+  admin <- allocatePartyWithHint "GrowStreamsAdmin" (PartyIdHint "Admin")
+  
+  currentTime <- getTime
+  
+  factory <- submit admin do
+    createCmd StreamFactory with
+      admin = admin
+      users = [alice, bob]
+      nextStreamId = 1
+  
+  -- Create stream: 1 GROW/second
+  debug "Creating stream: 1 GROW/second, 1000 GROW deposit"
+  (_, stream) <- submit alice do
+    exerciseCmd factory CreateStream with
+      sender = alice
+      receiver = bob
+      flowRate = 1.0
+      initialDeposit = 1000.0
+      currentTime = currentTime
+  
+  -- Phase 1: Active for 30 seconds
+  debug "\n--- Phase 1: Active for 30 seconds ---"
+  passTime (seconds 30)
+  
+  time1 <- getTime
+  balance1 <- submit bob do
+    exerciseCmd stream ObligationView with currentTime = time1
+  
+  debug $ "Balance after 30s: " <> show balance1 <> " GROW (expected: ~30)"
+  
+  -- Phase 2: Pause stream
+  debug "\n--- Phase 2: Pausing stream ---"
+  pausedStream <- submit alice do
+    exerciseCmd stream Pause with currentTime = time1
+  
+  debug "Stream paused. Waiting 30 seconds..."
+  passTime (seconds 30)
+  
+  time2 <- getTime
+  balance2 <- submit bob do
+    exerciseCmd pausedStream ObligationView with currentTime = time2
+  
+  debug $ "Balance after pause (30s later): " <> show balance2 <> " GROW"
+  debug "Expected: Still ~30 GROW (no accrual while paused)"
+  
+  assertMsg "Balance should not increase while paused" (balance2 <= balance1 + 1.0)
+  
+  -- Phase 3: Resume stream
+  debug "\n--- Phase 3: Resuming stream ---"
+  resumedStream <- submit alice do
+    exerciseCmd pausedStream Resume with currentTime = time2
+  
+  debug "Stream resumed. Waiting 30 seconds..."
+  passTime (seconds 30)
+  
+  time3 <- getTime
+  balance3 <- submit bob do
+    exerciseCmd resumedStream ObligationView with currentTime = time3
+  
+  debug $ "Balance after resume (30s later): " <> show balance3 <> " GROW"
+  debug "Expected: ~60 GROW (30 before pause + 30 after resume)"
+  
+  -- Phase 4: TopUp
+  debug "\n--- Phase 4: TopUp 500 GROW ---"
+  toppedStream <- submit alice do
+    exerciseCmd resumedStream TopUp with
+      additionalDeposit = 500.0
+      currentTime = time3
+  
+  debug "Topped up 500 GROW. Waiting 20 seconds..."
+  passTime (seconds 20)
+  
+  time4 <- getTime
+  balance4 <- submit bob do
+    exerciseCmd toppedStream ObligationView with currentTime = time4
+  
+  debug $ "Balance after topup (20s later): " <> show balance4 <> " GROW"
+  debug "Expected: ~80 GROW (60 + 20 more seconds)"
+  
+  -- Phase 5: UpdateRate
+  debug "\n--- Phase 5: UpdateRate to 2.0 GROW/second ---"
+  updatedStream <- submit alice do
+    exerciseCmd toppedStream UpdateRate with
+      newFlowRate = 2.0
+      currentTime = time4
+  
+  debug "Rate updated to 2.0 GROW/second. Waiting 20 seconds..."
+  passTime (seconds 20)
+  
+  time5 <- getTime
+  balance5 <- submit bob do
+    exerciseCmd updatedStream ObligationView with currentTime = time5
+  
+  debug $ "Final balance (20s at new rate): " <> show balance5 <> " GROW"
+  debug "Expected: ~120 GROW (80 + 40 at 2.0 GROW/second)"
+  
+  debug "\n=== Lifecycle Demo Complete ==="
+  debug "Demonstrated: Pause, Resume, TopUp, UpdateRate with real time"
+  
+  return ()
+
+-- Quick lifecycle demo (shorter waits for testing)
+lifecycleQuickDemo : Script ()
+lifecycleQuickDemo = script do
+  debug "=== Quick Lifecycle Demo (5s intervals) ==="
+  
+  alice <- allocatePartyWithHint "Alice" (PartyIdHint "Alice")
+  bob <- allocatePartyWithHint "Bob" (PartyIdHint "Bob")
+  admin <- allocatePartyWithHint "GrowStreamsAdmin" (PartyIdHint "Admin")
+  
+  currentTime <- getTime
+  
+  factory <- submit admin do
+    createCmd StreamFactory with
+      admin = admin
+      users = [alice, bob]
+      nextStreamId = 1
+  
+  -- Higher rate for quick demo
+  (_, stream) <- submit alice do
+    exerciseCmd factory CreateStream with
+      sender = alice
+      receiver = bob
+      flowRate = 10.0  -- 10 GROW/second
+      initialDeposit = 1000.0
+      currentTime = currentTime
+  
+  -- Active 5s
+  passTime (seconds 5)
+  time1 <- getTime
+  
+  -- Pause
+  pausedStream <- submit alice do
+    exerciseCmd stream Pause with currentTime = time1
+  
+  -- Wait 5s while paused
+  passTime (seconds 5)
+  time2 <- getTime
+  
+  -- Resume
+  resumedStream <- submit alice do
+    exerciseCmd pausedStream Resume with currentTime = time2
+  
+  -- Active 5s
+  passTime (seconds 5)
+  time3 <- getTime
+  
+  balance <- submit bob do
+    exerciseCmd resumedStream ObligationView with currentTime = time3
+  
+  debug $ "Final balance: " <> show balance <> " GROW"
+  debug "Expected: ~100 GROW (5s + 5s at 10 GROW/second, paused 5s in middle)"
+  
+  return ()

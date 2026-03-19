@@ -1,0 +1,122 @@
+-- scripts/demo/02-create-stream-realtime.daml
+-- Real-Time Stream Creation Demo
+--
+-- IMPORTANT: This script uses REAL WALL-CLOCK TIME
+-- Unlike sandbox tests that use setTime, this waits actual seconds
+-- Use for testnet demos to show real-time accrual
+
+module Demo.CreateStreamRealtime where
+
+import Daml.Script
+import DA.Time
+import StreamCore
+import GrowToken
+
+-- Demo: Create stream and wait for real-time accrual
+createStreamRealtime : Script ()
+createStreamRealtime = script do
+  debug "=== Real-Time Stream Creation Demo ==="
+  
+  -- Get parties (must match 01-setup-testnet.daml)
+  alice <- allocatePartyWithHint "Alice" (PartyIdHint "Alice")
+  bob <- allocatePartyWithHint "Bob" (PartyIdHint "Bob")
+  admin <- allocatePartyWithHint "GrowStreamsAdmin" (PartyIdHint "Admin")
+  
+  -- Get current time from ledger
+  currentTime <- getTime
+  debug $ "Current time: " <> show currentTime
+  
+  -- Find Alice's StreamFactory (created in setup)
+  -- In real testnet, you'd query by contract ID
+  factory <- submit admin do
+    createCmd StreamFactory with
+      admin = admin
+      users = [alice, bob]
+      nextStreamId = 1
+  
+  -- Alice creates a stream to Bob
+  -- Flow rate: 1.0 GROW per second
+  -- Initial deposit: 1000 GROW
+  debug "Alice creating stream to Bob (1.0 GROW/second)..."
+  
+  (newFactory, stream) <- submit alice do
+    exerciseCmd factory CreateStream with
+      sender = alice
+      receiver = bob
+      flowRate = 1.0
+      initialDeposit = 1000.0
+      currentTime = currentTime
+  
+  debug "Stream created successfully!"
+  debug $ "Stream ID: " <> show stream
+  
+  -- CRITICAL: Wait for REAL TIME (not simulated)
+  -- This is the key difference from sandbox tests
+  debug "Waiting 60 seconds for real accrual..."
+  debug "(This is actual wall-clock time, not simulated)"
+  
+  -- passTime waits for real seconds on testnet
+  passTime (seconds 60)
+  
+  -- Get new current time after waiting
+  afterWaitTime <- getTime
+  debug $ "Time after wait: " <> show afterWaitTime
+  
+  -- Bob checks his withdrawable balance (non-consuming)
+  debug "Bob checking withdrawable balance..."
+  
+  withdrawable <- submit bob do
+    exerciseCmd stream ObligationView with
+      currentTime = afterWaitTime
+  
+  debug $ "Withdrawable after 60 seconds: " <> show withdrawable <> " GROW"
+  debug "Expected: ~60 GROW (1.0 GROW/second × 60 seconds)"
+  
+  -- Verify the accrual is correct
+  assertMsg "Accrual should be approximately 60 GROW" (withdrawable >= 59.0 && withdrawable <= 61.0)
+  
+  debug "=== Real-Time Demo Complete ==="
+  debug "Stream is accruing in real-time on Canton testnet!"
+  
+  return ()
+
+-- Alternative: Demo with shorter wait time for quick verification
+createStreamQuickDemo : Script ()
+createStreamQuickDemo = script do
+  debug "=== Quick Real-Time Demo (10 seconds) ==="
+  
+  alice <- allocatePartyWithHint "Alice" (PartyIdHint "Alice")
+  bob <- allocatePartyWithHint "Bob" (PartyIdHint "Bob")
+  admin <- allocatePartyWithHint "GrowStreamsAdmin" (PartyIdHint "Admin")
+  
+  currentTime <- getTime
+  
+  factory <- submit admin do
+    createCmd StreamFactory with
+      admin = admin
+      users = [alice, bob]
+      nextStreamId = 1
+  
+  -- Higher flow rate for quick demo
+  (_, stream) <- submit alice do
+    exerciseCmd factory CreateStream with
+      sender = alice
+      receiver = bob
+      flowRate = 10.0  -- 10 GROW per second
+      initialDeposit = 1000.0
+      currentTime = currentTime
+  
+  debug "Stream created: 10 GROW/second"
+  debug "Waiting 10 seconds..."
+  
+  passTime (seconds 10)
+  
+  afterTime <- getTime
+  withdrawable <- submit bob do
+    exerciseCmd stream ObligationView with
+      currentTime = afterTime
+  
+  debug $ "Withdrawable: " <> show withdrawable <> " GROW"
+  debug "Expected: ~100 GROW (10 GROW/second × 10 seconds)"
+  
+  return ()

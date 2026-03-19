@@ -1,0 +1,94 @@
+SDK 3.4.11 has been released!
+See https://github.com/digital-asset/daml/releases/tag/v3.4.11 for details.
+
+
+2026-03-19 10:54:26.94 [ERROR]  [test ScenarioService] 
+SCENARIO SERVICE STDERR: WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+
+2026-03-19 10:54:26.94 [ERROR]  [test ScenarioService] 
+SCENARIO SERVICE STDERR: WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.apache.pekko.util.Unsafe (file:/Users/prakharmishra/.daml/sdk/2.10.3/damlc/resources/scenario-service.jar)
+
+2026-03-19 10:54:26.94 [ERROR]  [test ScenarioService] 
+SCENARIO SERVICE STDERR: WARNING: Please consider reporting this to the maintainers of class org.apache.pekko.util.Unsafe
+
+2026-03-19 10:54:26.94 [ERROR]  [test ScenarioService] 
+SCENARIO SERVICE STDERR: WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+File:     daml/Test/StreamCoreTest.daml
+Hidden:   no
+Range:    9:1-9:17
+Source:   typecheck
+Severity: DsWarning
+Message: 
+[0;93mdaml/Test/StreamCoreTest.daml:9:1: warning:
+    The import of ‘GrowToken’ is redundant
+      except perhaps to import instances from ‘GrowToken’
+    To import instances alone, use: import GrowToken()[0m
+[4;1m
+Test Summary[m
+
+daml/HelloStream.daml:testSimple: ok, 0 active contracts, 2 transactions.
+daml/Test/GrowTokenTest.daml:testBurnAll: ok, 1 active contracts, 3 transactions.
+daml/Test/GrowTokenTest.daml:testMergeDifferentOwners: ok, 3 active contracts, 4 transactions.
+daml/Test/GrowTokenTest.daml:testSplitEqualTotal: ok, 2 active contracts, 3 transactions.
+daml/Test/GrowTokenTest.daml:testZeroTransfer: ok, 2 active contracts, 3 transactions.
+daml/Test/GrowTokenTest.daml:testInsufficientBalance: ok, 2 active contracts, 3 transactions.
+daml/Test/GrowTokenTest.daml:testBatchMint: ok, 4 active contracts, 2 transactions.
+daml/Test/GrowTokenTest.daml:testTokenBurn: ok, 2 active contracts, 3 transactions.
+daml/Test/GrowTokenTest.daml:testTokenMerge: ok, 2 active contracts, 4 transactions.
+daml/Test/GrowTokenTest.daml:testTokenSplit: ok, 3 active contracts, 3 transactions.
+daml/Test/GrowTokenTest.daml:testTokenTransfer: ok, 3 active contracts, 3 transactions.
+daml/Test/GrowTokenTest.daml:testTransferAll: ok, 2 active contracts, 3 transactions.
+daml/Test/GrowTokenTest.daml:testTransferChain: ok, 4 active contracts, 4 transactions.
+daml/Test/GrowTokenTest.daml:testCancelAllowance: ok, 1 active contracts, 4 transactions.
+daml/Test/GrowTokenTest.daml:testExceedAllowance: ok, 2 active contracts, 4 transactions.
+daml/Test/GrowTokenTest.daml:testAllowance: ok, 3 active contracts, 4 transactions.
+daml/Test/StreamCoreTest.daml:testInvalidDeposit: ok, 1 active contracts, 2 transactions.
+daml/Test/StreamCoreTest.daml:testInvalidFlowRate: ok, 1 active contracts, 2 transactions.
+daml/Test/StreamCoreTest.daml:testCannotPausePaused: ok, 2 active contracts, 4 transactions.
+daml/Test/StreamCoreTest.daml:testGetStreamInfo: ok, 2 active contracts, 3 transactions.
+daml/Test/StreamCoreTest.daml:testGetWithdrawable: ok, 2 active contracts, 4 transactions.
+daml/Test/StreamCoreTest.daml:testStreamTopUp: ok, 2 active contracts, 4 transactions.
+daml/Test/StreamCoreTest.daml:testStreamPauseResume: ok, 2 active contracts, 5 transactions.
+daml/Test/StreamCoreTest.daml:testStreamLifecycle: ok, 1 active contracts, 4 transactions.
+daml/Test/StreamCoreTest.daml:testNoWithdrawalWhenZero: ok, 2 active contracts, 3 transactions.
+daml/Test/StreamCoreTest.daml:testCannotResumeActive: ok, 2 active contracts, 3 transactions.
+daml/Test/StreamCoreTest.daml:testZeroAccrualWhenPaused: ok, 2 active contracts, 4 transactions.
+daml/Test/StreamCoreTest.daml:testHighFlowRate: ok, 2 active contracts, 3 transactions.
+daml/Test/StreamCoreTest.daml:testMultipleWithdrawals: ok, 2 active contracts, 5 transactions.
+daml/Test/StreamCoreTest.daml:testStreamDepletion: ok, 2 active contracts, 3 transactions.
+daml/Test/StreamCoreTest.daml:testFactoryIdIncrement: ok, 3 active contracts, 3 transactions.
+daml/Test/UpdateRateTest.daml:testUpdateRate: ok, 2 active contracts, 4 transactions.
+daml/Test/UpdateRateTest.daml:testObligationView: ok, 2 active contracts, 4 transactions.
+Modules internal to this package:
+- Internal templates
+  7 defined
+  6 ( 85.7%) created
+- Internal template choices
+  29 defined
+  21 ( 72.4%) exercised
+- Internal interface implementations
+  0 defined
+    0 internal interfaces
+    0 external interfaces
+- Internal interface choices
+  0 defined
+  0 (100.0%) exercised
+Modules external to this package:
+- External templates
+  0 defined
+  0 (100.0%) created in any tests
+  0 (100.0%) created in internal tests
+  0 (100.0%) created in external tests
+- External template choices
+  0 defined
+  0 (100.0%) exercised in any tests
+  0 (100.0%) exercised in internal tests
+  0 (100.0%) exercised in external tests
+- External interface implementations
+  0 defined
+- External interface choices
+  0 defined
+  0 (100.0%) exercised in any tests
+  0 (100.0%) exercised in internal tests
+  0 (100.0%) exercised in external tests
+

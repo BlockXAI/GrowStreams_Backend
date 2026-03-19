@@ -1,0 +1,26 @@
+SDK 3.4.11 has been released!
+See https://github.com/digital-asset/daml/releases/tag/v3.4.11 for details.
+
+Listing parties at localhost:6865
+PartyDetails {party = 'party-01f28f51-139f-4d3b-99e7-cccf9eeeb699::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Alice", isLocal = True}
+PartyDetails {party = 'party-1939a953-f183-4e40-a268-5132ba44fa47::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Bob", isLocal = True}
+PartyDetails {party = 'party-1ea2a120-33f1-4838-a473-88e2ee77c76f::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Alice", isLocal = True}
+PartyDetails {party = 'party-26724bb3-24e5-4069-9650-ab0f431cdcfc::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Bob", isLocal = True}
+PartyDetails {party = 'party-2bd9695b-5945-4f11-922d-83f8625308ae::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Bob", isLocal = True}
+PartyDetails {party = 'party-6876f429-b721-42d0-b15d-6859eaf4dd50::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Bob", isLocal = True}
+PartyDetails {party = 'party-7095f137-7a07-4876-b530-fd246665aabb::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Admin", isLocal = True}
+PartyDetails {party = 'party-740fd125-8115-47be-8ae5-a72207ef7e9d::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Bob", isLocal = True}
+PartyDetails {party = 'party-76a126c8-5b02-4395-9acb-53a33a52e604::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Alice", isLocal = True}
+PartyDetails {party = 'party-7eca426e-0e31-4faa-8387-3f203098aa98::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Alice", isLocal = True}
+PartyDetails {party = 'party-974f4e44-eb56-4d52-b912-9d0b43211b22::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Admin", isLocal = True}
+PartyDetails {party = 'party-ab3a7710-5db4-40e0-936b-f64daa88eb4f::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Bob", isLocal = True}
+PartyDetails {party = 'party-b84ea0db-3bf2-4f2f-9a0c-ccc6b3dddac2::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Admin", isLocal = True}
+PartyDetails {party = 'party-ce9c7113-fe59-458e-a15c-55dd68820757::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Admin", isLocal = True}
+PartyDetails {party = 'party-e58e8ec2-8a5c-48e2-8a26-b8cfbeb86bd3::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Alice", isLocal = True}
+PartyDetails {party = 'party-e6bd049f-9542-4283-b373-2a149563ae10::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Alice", isLocal = True}
+PartyDetails {party = 'party-ea959c82-11bf-4088-8e09-63820e86cf67::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Alice", isLocal = True}
+PartyDetails {party = 'party-ee5c64ad-05f9-4df5-9081-a29ecb4ddfe3::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Admin", isLocal = True}
+PartyDetails {party = 'party-f068341d-4294-4921-b19e-e1c616101786::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Admin", isLocal = True}
+PartyDetails {party = 'party-f2555ed2-514d-43a3-b7e7-598817bdf16f::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Admin", isLocal = True}
+PartyDetails {party = 'party-fb753360-f34e-42c3-8a75-dc92a4a8459c::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "Bob", isLocal = True}
+PartyDetails {party = 'sandbox::12200c904c539b9006bc40adf3c3727653320c5951a7ba3e23ece0b79f011257e614', displayName = "", isLocal = True}

@@ -1,0 +1,70 @@
+-- scripts/demo/01-setup-testnet.daml
+-- Testnet Setup Script (Real Time Compatible)
+-- 
+-- IMPORTANT: This script uses real wall-clock time, not setTime
+-- Use this for testnet demos, NOT for sandbox testing
+
+module Demo.SetupTestnet where
+
+import Daml.Script
+import StreamCore
+import GrowToken
+
+-- Setup script for Canton testnet deployment
+setupTestnet : Script ()
+setupTestnet = script do
+  debug "=== GrowStreams Testnet Setup ==="
+  
+  -- Allocate parties (use actual testnet party allocation)
+  admin <- allocatePartyWithHint "GrowStreamsAdmin" (PartyIdHint "Admin")
+  alice <- allocatePartyWithHint "Alice" (PartyIdHint "Alice")
+  bob <- allocatePartyWithHint "Bob" (PartyIdHint "Bob")
+  
+  debug $ "Admin party: " <> show admin
+  debug $ "Alice party: " <> show alice
+  debug $ "Bob party: " <> show bob
+  
+  -- Create initial tokens for Alice (sender)
+  aliceToken <- submit alice do
+    createCmd GrowToken with
+      owner = alice
+      issuer = alice
+      amount = 10000.0
+      symbol = "GROW"
+      decimals = 2
+  
+  debug "Alice token created: 10,000 GROW"
+  
+  -- Create initial tokens for Bob (receiver)
+  bobToken <- submit bob do
+    createCmd GrowToken with
+      owner = bob
+      issuer = bob
+      amount = 5000.0
+      symbol = "GROW"
+      decimals = 2
+  
+  debug "Bob token created: 5,000 GROW"
+  
+  -- Create StreamFactory (admin-owned)
+  factory <- submit admin do
+    createCmd StreamFactory with
+      admin = admin
+      users = [alice, bob]
+      nextStreamId = 1
+  
+  debug "StreamFactory created"
+  
+  -- Create Faucet for easy token distribution
+  faucet <- submit admin do
+    createCmd Faucet with
+      issuer = admin
+      symbol = "GROW"
+      decimals = 2
+  
+  debug "Faucet created for token distribution"
+  
+  debug "=== Testnet Setup Complete ==="
+  debug "Next: Run 02-create-stream-realtime.daml"
+  
+  return ()
