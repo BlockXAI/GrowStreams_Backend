@@ -8,10 +8,11 @@ import { Wallet as GearWallet } from '@gear-js/wallet-connect';
 import {
   LayoutDashboard, Waves, Vault, GitFork, Shield,
   Trophy, Fingerprint, Wallet, LogOut, Menu, X, Coins,
-  Medal, Zap,
+  Medal, Zap, Smartphone,
 } from 'lucide-react';
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useWalletConnect } from '@/contexts/WalletConnectContext';
 
 const PixelBlast = dynamic(() => import('@/components/ui/PixelBlast'), { ssr: false });
 const RisingLines = dynamic(() => import('@/components/ui/RisingLines'), { ssr: false });
@@ -40,6 +41,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { account, logout } = useAccount();
   const { isApiReady } = useApi();
+  const { isConnected: isWCConnected, isConnecting: isWCConnecting, connect: wcConnect, disconnect: wcDisconnect } = useWalletConnect();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isComingSoon = comingSoonRoutes.some(r => pathname.startsWith(r));
 
@@ -138,7 +140,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {shortenAddress(account.address)}
               </span>
               <button
-                onClick={logout}
+                onClick={() => { if (isWCConnected) wcDisconnect(); else logout(); }}
                 className="ml-auto text-provn-muted hover:text-red-400 transition-colors"
                 title="Disconnect"
               >
@@ -160,6 +162,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex-1" />
           <div className="flex items-center gap-3">
             {isApiReady && <GearWallet theme="vara" displayBalance />}
+            {isApiReady && !account && (
+              <button
+                onClick={wcConnect}
+                disabled={isWCConnecting}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors disabled:opacity-50 disabled:cursor-wait"
+                title="Connect mobile wallet via WalletConnect"
+              >
+                <Smartphone className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{isWCConnecting ? 'Connecting...' : 'Mobile'}</span>
+              </button>
+            )}
             <div className="flex items-center gap-2 text-xs text-provn-muted">
               <span className="hidden sm:inline">Vara Testnet</span>
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />

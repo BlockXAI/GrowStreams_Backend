@@ -10,6 +10,11 @@ const VaraProviders = dynamic(
   { ssr: false }
 );
 
+const WalletConnectProvider = dynamic(
+  () => import('@/contexts/WalletConnectContext').then((mod) => mod.WalletConnectProvider),
+  { ssr: false }
+);
+
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
   const [mounted, setMounted] = useState(false);
@@ -34,9 +39,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <VaraProviders>
-        {children}
-        <Toaster position="top-right" richColors />
+        <WalletConnectProvider>
+          {children}
+          <Toaster position="top-right" richColors />
+        </WalletConnectProvider>
       </VaraProviders>
     </QueryClientProvider>
   );
-} 
+}
