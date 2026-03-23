@@ -353,6 +353,10 @@ export default function StreamsPage() {
         toast.error('Enter valid flow rate and deposit amounts');
         return;
       }
+      if (depositBelowBuffer) {
+        toast.error(`Initial deposit must be at least ${minBuffer.toFixed(4)} ${useGrow ? 'GROW' : 'units'} to cover the minimum ${MIN_BUFFER_SECONDS / 3600}h buffer`);
+        return;
+      }
       await actions.createStream(receiver, useGrow ? GROW_TOKEN : ZERO_TOKEN, baseFlowRate, baseDeposit);
       toast.success('Stream created!');
       if (streamName) {
@@ -401,6 +405,9 @@ export default function StreamsPage() {
   const estDuration = flowRate && deposit
     ? (useGrow ? parseFloat(deposit) / parseFloat(flowRate) : Number(deposit) / Number(flowRate)) : 0;
   const estFlowRatePerDay = useGrow && flowRate ? parseFloat(flowRate) * 86400 : 0;
+  const minBuffer = flowRate ? (useGrow ? parseFloat(flowRate) * MIN_BUFFER_SECONDS : Number(flowRate) * MIN_BUFFER_SECONDS) : 0;
+  const depositNum = deposit ? (useGrow ? parseFloat(deposit) : Number(deposit)) : 0;
+  const depositBelowBuffer = flowRate && deposit && depositNum > 0 && minBuffer > 0 && depositNum < minBuffer;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -550,19 +557,25 @@ export default function StreamsPage() {
               )}
               <div className="flex justify-between">
                 <span className="text-provn-muted">Min buffer ({MIN_BUFFER_SECONDS / 3600}h)</span>
-                <span className="font-mono">
+                <span className={`font-mono ${depositBelowBuffer ? 'text-red-400 font-semibold' : ''}`}>
                   {useGrow
                     ? (parseFloat(flowRate) * MIN_BUFFER_SECONDS).toFixed(4) + ' GROW'
                     : formatTokenAmount(Number(flowRate) * MIN_BUFFER_SECONDS)}
                 </span>
               </div>
+              {depositBelowBuffer && (
+                <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>Initial deposit must be at least <strong>{minBuffer.toFixed(4)} {useGrow ? 'GROW' : 'units'}</strong> to cover the minimum {MIN_BUFFER_SECONDS / 3600}h buffer at this flow rate.</span>
+                </div>
+              )}
             </div>
           )}
           <button
-            type="submit" disabled={busy === -1}
+            type="submit" disabled={busy === -1 || !!depositBelowBuffer}
             className="px-6 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
           >
-            {busy === -1 ? 'Signing transaction...' : 'Create Stream'}
+            {busy === -1 ? 'Signing transaction...' : depositBelowBuffer ? 'Deposit too low' : 'Create Stream'}
           </button>
         </form>
       )}
