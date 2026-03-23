@@ -38,8 +38,16 @@ function isMobileDevice() {
 
 function isInWalletBrowser() {
   if (typeof window === 'undefined') return false;
+  // Check user agent first
   const ua = navigator.userAgent.toLowerCase();
-  return ua.includes('subwallet') || ua.includes('nova');
+  if (ua.includes('subwallet') || ua.includes('nova')) return true;
+  // SubWallet / Nova in-app browsers inject web3 providers without changing UA
+  const w = window as any;
+  if (w.injectedWeb3 && Object.keys(w.injectedWeb3).length > 0) return true;
+  if (w.SubWallet || w.novaWallet) return true;
+  // Check for polkadot-js extension injection (common in wallet browsers)
+  if (w.injectedWeb3?.['subwallet-js'] || w.injectedWeb3?.['polkadot-js'] || w.injectedWeb3?.['nova']) return true;
+  return false;
 }
 
 function getOS() {
@@ -61,31 +69,63 @@ export default function WalletConnect() {
     setIsMobile(isMobileDevice());
     setInWallet(isInWalletBrowser());
     setOS(getOS() as 'ios' | 'android' | 'unknown');
+
+    // Wallet browsers may inject providers after initial load — recheck after a short delay
+    const timer = setTimeout(() => {
+      if (!inWallet && isInWalletBrowser()) {
+        setInWallet(true);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
   }, []);
 
   // If user is in a wallet browser (SubWallet/Nova in-app), show the standard connect
-  if (inWallet) {
+  if (inWallet || showDesktop) {
     return (
-      <div className="min-h-screen bg-provn-bg flex items-center justify-center p-4">
+      <div className="min-h-[100dvh] bg-provn-bg flex flex-col items-center justify-center p-6">
         <div className="max-w-sm w-full">
-          <div className="text-center mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center mx-auto mb-4">
-              <Waves className="w-7 h-7 text-white" />
+          <div className="text-center mb-10">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-emerald-500/20">
+              <Waves className="w-10 h-10 text-white" />
             </div>
-            <h1 className="text-xl font-bold text-provn-text mb-1">GrowStreams</h1>
-            <p className="text-provn-muted text-sm">
-              Tap below to connect your wallet
+            <h1 className="text-2xl font-bold text-provn-text mb-2">GrowStreams</h1>
+            <p className="text-provn-muted text-sm leading-relaxed">
+              Tap the button below to connect your wallet and access the dashboard
             </p>
           </div>
-          <div className="flex justify-center">
+
+          <div className="flex justify-center mb-6">
             {isApiReady ? (
               <Wallet theme="vara" displayBalance />
             ) : (
-              <div className="flex items-center gap-2 text-provn-muted text-sm">
-                <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                Connecting to Vara...
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-provn-muted text-sm">Connecting to Vara Network...</p>
               </div>
             )}
+          </div>
+
+          {isApiReady && (
+            <div className="bg-provn-surface/50 rounded-xl p-4 border border-provn-border/30 mt-4">
+              <p className="text-xs text-provn-muted text-center leading-relaxed">
+                Tap <span className="text-emerald-400 font-medium">&quot;Connect Wallet&quot;</span> above, then select your account from the list to access the dashboard.
+              </p>
+            </div>
+          )}
+
+          {isMobile && showDesktop && (
+            <button
+              onClick={() => setShowDesktop(false)}
+              className="w-full text-center text-xs text-emerald-400 hover:text-emerald-300 mt-6 py-2 transition-colors flex items-center justify-center gap-1"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              Back to mobile wallet options
+            </button>
+          )}
+
+          <div className="flex items-center justify-center gap-2 text-xs text-provn-muted mt-8">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            Vara Testnet
           </div>
         </div>
       </div>
@@ -200,44 +240,35 @@ export default function WalletConnect() {
     );
   }
 
-  // Desktop / fallback view
+  // Desktop fallback — non-mobile users without wallet injection
+  // (showDesktop case is handled above in the inWallet || showDesktop block)
   return (
-    <div className="min-h-screen bg-provn-bg flex items-center justify-center p-4">
+    <div className="min-h-screen bg-provn-bg flex flex-col items-center justify-center p-6">
       <div className="max-w-sm w-full">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/20">
-            <Waves className="w-8 h-8 text-white" />
+        <div className="text-center mb-10">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-emerald-500/20">
+            <Waves className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-provn-text mb-2">GrowStreams</h1>
-          <p className="text-provn-muted text-sm">
+          <p className="text-provn-muted text-sm leading-relaxed">
             Connect your Vara wallet to start streaming tokens
           </p>
         </div>
 
-        <div className="flex justify-center">
+        <div className="flex justify-center mb-6">
           {isApiReady ? (
             <Wallet theme="vara" displayBalance />
           ) : (
-            <div className="flex items-center gap-2 text-provn-muted text-sm">
-              <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              Connecting to Vara network...
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-provn-muted text-sm">Connecting to Vara Network...</p>
             </div>
           )}
         </div>
 
-        {isMobile && showDesktop && (
-          <button
-            onClick={() => setShowDesktop(false)}
-            className="w-full text-center text-xs text-emerald-400 hover:text-emerald-300 mt-6 py-2 transition-colors flex items-center justify-center gap-1"
-          >
-            <Smartphone className="w-3.5 h-3.5" />
-            Back to mobile wallet options
-          </button>
-        )}
-
-        <div className="flex items-center justify-center gap-2 text-xs text-provn-muted mt-6">
+        <div className="flex items-center justify-center gap-2 text-xs text-provn-muted mt-8">
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          Connected to Vara Testnet
+          Vara Testnet
         </div>
       </div>
     </div>
