@@ -34,6 +34,10 @@ function getPayload(res: TxResult | PayloadResult): string {
 
 function toHex(address: string): string {
   if (address.startsWith('0x') && address.length === 66) return address;
+  // Pad short hex addresses (e.g. 20-byte Ethereum) to 32-byte actor_id
+  if (address.startsWith('0x') && address.length < 66) {
+    return '0x' + address.slice(2).padStart(64, '0');
+  }
   try {
     return decodeAddress(address);
   } catch {

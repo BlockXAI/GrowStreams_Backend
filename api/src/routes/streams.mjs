@@ -9,6 +9,13 @@ function toBigIntStr(v) {
   return typeof v === 'bigint' ? v.toString() : String(v);
 }
 
+// Normalize a hex address (e.g. 20-byte Ethereum) to a 32-byte 0x-prefixed hex string
+// required by Vara/Gear actor_id ([u8;32]).
+function toActorId(hex) {
+  const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
+  return '0x' + clean.padStart(64, '0');
+}
+
 function serializeDeep(obj) {
   if (obj == null) return obj;
   if (typeof obj === 'bigint') return obj.toString();
@@ -46,14 +53,14 @@ router.get('/active', async (req, res, next) => {
 
 router.get('/sender/:address', async (req, res, next) => {
   try {
-    const result = await query(C, 'GetSenderStreams', req.params.address);
+    const result = await query(C, 'GetSenderStreams', toActorId(req.params.address));
     res.json({ sender: req.params.address, streamIds: (result || []).map(toBigIntStr) });
   } catch (err) { next(err); }
 });
 
 router.get('/receiver/:address', async (req, res, next) => {
   try {
-    const result = await query(C, 'GetReceiverStreams', req.params.address);
+    const result = await query(C, 'GetReceiverStreams', toActorId(req.params.address));
     res.json({ receiver: req.params.address, streamIds: (result || []).map(toBigIntStr) });
   } catch (err) { next(err); }
 });
@@ -90,10 +97,10 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Missing: receiver, token, flowRate, initialDeposit' });
     }
     if (mode === 'payload') {
-      const payload = encodePayload(C, 'CreateStream', receiver, token, BigInt(flowRate), BigInt(initialDeposit));
+      const payload = encodePayload(C, 'CreateStream', toActorId(receiver), toActorId(token), BigInt(flowRate), BigInt(initialDeposit));
       return res.json({ payload });
     }
-    const { result, blockHash } = await command(C, 'CreateStream', receiver, token, BigInt(flowRate), BigInt(initialDeposit));
+    const { result, blockHash } = await command(C, 'CreateStream', toActorId(receiver), toActorId(token), BigInt(flowRate), BigInt(initialDeposit));
     res.status(201).json({ result, blockHash });
   } catch (err) { next(err); }
 });
